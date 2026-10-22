@@ -130,7 +130,10 @@ async def train(model_path: Path, output: Path):
         gate, ready = asyncio.Event(), asyncio.Event()
         task = asyncio.create_task(rollout(uid, a, b, gate, ready))
         tasks.append(task)
+        task.add_done_callback(lambda _: ready.set())
         await ready.wait()
+        if task.done():
+            await task
         return gate, task
 
     def evaluate():

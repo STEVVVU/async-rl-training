@@ -70,6 +70,22 @@ class FenceTests(unittest.TestCase):
 
 
 class NativeBodyTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reference_startup_error_reaches_caller_without_waiting_forever(self):
+        path = Path(__file__).resolve().parents[2] / "examples/local_async/train.py"
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        launch = next(
+            node for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef) and node.name == "launch"
+        )
+
+        async def broken_rollout(*args):
+            raise ValueError("controlled startup failure")
+
+        namespace = {"asyncio": asyncio, "rollout": broken_rollout, "tasks": []}
+        exec(compile(ast.Module(body=[launch], type_ignores=[]), str(path), "exec"), namespace)
+        with self.assertRaisesRegex(ValueError, "controlled startup failure"):
+            await asyncio.wait_for(namespace["launch"]("bad", 1, 2), timeout=2)
+        self.assertTrue(all(task.done() for task in namespace["tasks"]))
+
     async def test_strict_boundary_keeps_partial_batch_at_exhaustion(self):
         units = native_units()
         group = units.GeneratedOutputGroup({}, "boundary", 1)
