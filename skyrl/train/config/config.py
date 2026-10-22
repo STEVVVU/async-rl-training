@@ -1084,8 +1084,14 @@ class FullyAsyncConfig(BaseConfig):
     enabled: bool = False
     """Indicates whether fully async training is enabled"""
     max_staleness_steps: int = 4
-    """Maximum off-policy steps allowed. If a trajectory group is scheduled at step *i* and trained at step *j*,
-    then ``j - i <= max_staleness_steps``. Larger values increase throughput but also off-policy-ness."""
+    """Capacity-control staleness budget, enforced per group only when strict_staleness is enabled.
+    Larger values increase throughput but also off-policy-ness. Capacity control alone can admit long stragglers."""
+    strict_staleness: bool = False
+    """Discard groups older than max_staleness_steps immediately before training.
+    The scheduling step conservatively bounds the oldest policy used by every trajectory and continuation.
+    Stale UIDs are filtered once per epoch and persisted in checkpoints; they are never retried.
+    An exhausted epoch discards any incomplete mini-batch and can perform fewer training steps.
+    The default retains upstream warning-only behavior."""
     num_parallel_generation_workers: int = 768
     """Number of generation workers to spawn. Should be >= ``policy_mini_batch_size`` and
     <= ``policy_mini_batch_size * (max_staleness_steps + 1)``."""

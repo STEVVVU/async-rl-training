@@ -124,3 +124,7 @@ tx/tinker/alembic/__pycache__/
 *.db-wal
 *.db-shm
 
+# Retained local verification runs, separate from maintained drivers.
+.evidence/
+.audit/
+

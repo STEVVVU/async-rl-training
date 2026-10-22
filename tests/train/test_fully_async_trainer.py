@@ -5,8 +5,9 @@ UID tracking, and the consumer's exhaustion-aware buffer drain.
 """
 
 import asyncio
+from contextlib import nullcontext
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from torchdata.stateful_dataloader import StatefulDataLoader
@@ -17,6 +18,7 @@ from skyrl.train.fully_async_trainer import (
     _AsyncDataloader,
     _AsyncStalenessManager,
 )
+from skyrl.train.staleness import StalenessFence
 from skyrl.train.utils.async_utils import BackgroundFailure
 
 
@@ -296,3 +298,36 @@ def test_should_keep_group_token_level_rewards():
         )
         is True
     )
+
+
+@pytest.mark.asyncio
+async def test_strict_stale_replay_has_one_terminal_accounting_effect():
+    manager = _AsyncStalenessManager(4, 2, 1)
+    await manager.acquire_submission_slot()
+    await manager.on_rollout_accepted()
+    group = GeneratedOutputGroup({}, "stale", 0)
+    loader = _make_async_dataloader(4, 2)
+    trainer = SimpleNamespace(
+        mini_batch_size=2,
+        sample_full_batch=False,
+        strict_staleness=True,
+        global_step=2,
+        _staleness_fence=StalenessFence(1),
+        _staleness_manager=manager,
+        async_train_dataloader=loader,
+        all_metrics={},
+        all_timings={},
+        _phase_gauge=SimpleNamespace(timed_phase=lambda *args: nullcontext()),
+        _drain_next_group=AsyncMock(side_effect=[group, group, None]),
+        _log_group_processing_error=Mock(),
+    )
+    kept, dropped, exhausted = await asyncio.wait_for(
+        FullyAsyncRayPPOTrainer._collect_generation_mini_batch(
+            trainer, asyncio.Queue(), asyncio.Event(), BackgroundFailure()
+        ),
+        timeout=2,
+    )
+    assert kept == [] and dropped == [group] and exhausted
+    assert manager._stat.accepted == 0 and manager._stat.filtered == 1
+    assert set(loader.get_filtered_uids_list()) == {"stale"}
+    assert loader.num_trained() == 0

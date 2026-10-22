@@ -1,0 +1,5 @@
+# Reference compatibility record, separate from the upstream SkyRL environment.
+# Use the existing interpreter; do not install these into a shared environment.
+torch==2.11.0+cu128
+transformers==5.20.2
+safetensors==0.8.0
