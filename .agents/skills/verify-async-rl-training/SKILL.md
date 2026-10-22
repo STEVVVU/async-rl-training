@@ -35,4 +35,4 @@ Run `& $uv run --isolated --no-project $ml scripts/verify_async_rl.py evidence -
 
 The drive must exit and release CUDA. Run `& $uv run --isolated --no-project $ml scripts/verify_async_rl.py cleanup --output .evidence/my-new-run`. It rechecks retained evidence. Confirm `nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv` no longer shows the owned drive PID. Never remove evidence or kill unrelated processes. No persistent server or process is created.
 
-Proven locally on October 21, 2026, through doctor, drive, evidence, and cleanup with `.evidence/final-reference`. The native distributed journey remains blocked. See [local scope and results](../../../README.local.md).
+Proven locally on October 21, 2026, through doctor, drive, evidence, and cleanup with `.evidence/final-reference`. The native distributed journey remains blocked. See [local scope and results](../../../README.md).

@@ -1,112 +1,49 @@
-<div align="center">
+# Async RL training with strict policy-age fencing
 
-# SkyRL: A Modular Full-stack RL Library for LLMs
+This project adds opt-in strict policy-age fencing and a bounded pretrained-model reference run to the complete Apache-2.0 [SkyRL](https://github.com/NovaSky-AI/SkyRL) framework. It preserves the full upstream source and history at commit `b3046522ffb63738eed75a9f4853b92cc161b0ff`, all licenses and notices, distributed trainers, generators, and examples. The original [upstream README](README.upstream.md) is preserved verbatim.
 
-<p align="center">
-| <a href="https://docs.skyrl.ai/docs/"><b>Documentation</b></a> | <a href="https://x.com/NovaSkyAI"><b>Twitter/X</b></a> | <a href="https://huggingface.co/NovaSky-AI"><b>Huggingface</b></a> | <a href="https://join.slack.com/t/skyrl/shared_invite/zt-3f6ncn5b8-QawzK3uks6ka3KWoLwsi5Q"><b>Slack Workspace</b></a> |
-</p>
+The coursework source is [Asynchronous Agentic Reinforcement Learning](https://people.eecs.berkeley.edu/~kubitron/courses/cs262a-F25/projects/reports/project1008_paper_ver2_72488057446561351955.pdf), by Charlie Ruan, Hanchen Li, and Jiaxiang Yu for Berkeley CS262a Fall 2025. The [official fully async tutorial](https://docs.skyrl.ai/docs/tutorials/fully_async) describes the framework mechanism. This checkout is based on current official SkyRL, not a verified copy of the students' exact experimental branch. Their scaling-law and throughput experiments have not been reproduced.
 
-</div>
+## Enable strict fencing in SkyRL
 
----
+Use the existing fully async entrypoint and normal model, data, and cluster configuration. Add `trainer.fully_async.strict_staleness=true`. For example, adapt the retained `examples/train/fully_async/fully_async_run_gsm8k.sh` and keep its backend settings.
 
-# Overview
+`max_staleness_steps` normally limits aggregate producer capacity. A long-running group can exceed that age. Strict mode checks each completed group's scheduling step against the consumer step before admitting it to a mini-batch. The scheduling stamp conservatively bounds its oldest token policy, including continuations after in-flight updates. Groups exactly at the age limit remain eligible.
 
-SkyRL is a full-stack RL library that provides the following components:
+A stale group is terminal for its UID for the current epoch. Its capacity is returned and the existing filtered-UID checkpoint ledger prevents regeneration on resume. A duplicate queue delivery does not repeat those effects. An exhausted epoch filters its partial final mini-batch and can train fewer steps. The default remains `strict_staleness=false`, preserving warning-only admission.
 
-- [skyrl](./skyrl): Our unified library for RL on your own hardware, with support for the [Tinker API](https://docs.skyrl.ai/docs/tinker/overview). `skyrl` combines our previous work:
+## Run the local pretrained reference
 
-  * [`skyrl-train`](./skyrl-train): A modular, performant training framework for RL.  
-  * [`skyrl-tx`](./skyrl-tx): A cross-platform library implementing a backend for the [Tinker API](https://docs.skyrl.ai/docs/tinker/overview), with a unified engine for training and inference.
-- [`skyrl-agent`](./skyrl-agent): Our agent layer for training long-horizon, real-world agents. For exact reproduction of [SkyRL-v0](https://novasky-ai.notion.site/skyrl-v0) results, please checkout to commit a0d50c482436af7fac8caffa4533616a78431d66.
-- [`skyrl-gym`](./skyrl-gym): Our gymnasium of tool-use tasks, including a library of math, coding, search and SQL environments implemented in the Gymnasium API.
+This separate backend runs on the observed Windows Python 3.11 environment. It uses real cached [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B/blob/c1899de289a04d12100db370d81485cdf75e47ca/README.md) safetensors at revision `c1899de289a04d12100db370d81485cdf75e47ca`, licensed Apache-2.0. It requires CUDA and the versions recorded in [requirements.txt](examples/local_async/requirements.txt). It never downloads a model, enables remote Python, or installs into the shared ML environment.
 
-
-# Getting Started
-
-For a guide on developing with SkyRL, take at look at our [Development Guide](https://docs.skyrl.ai/docs/getting-started/development) docs.
-
-For model training, checkout [`skyrl`](./skyrl) to start using, modifying, or building on top of the SkyRL training stack. See our [quickstart docs](https://docs.skyrl.ai/docs/index) to ramp up!
-
-For building environments, checkout [`skyrl-gym`](./skyrl-gym) to integrate your task in the simple gymnasium interface.
-
-For agentic pipelines, check out [`skyrl-agent`](./skyrl-agent) for our work on optimizing and scaling pipelines for multi-turn tool use LLMs on long-horizon, real-environment tasks.
-
-For a list of supported models, see our [Supported Models](https://docs.skyrl.ai/docs/getting-started/supported_models) docs.
-
-# News
-- **[2026/10/16]** 🎉 SkyRL has Day 0 support for Beam, Reflection AI's 501B-A23B MoE model: LoRA, full fine-tuning and MXFP8 RL recipes on the `beam-release` branch! [[Blog](https://blog.skyrl.ai/blog/day-0-beam)] [[Docs](https://docs.skyrl.ai/docs/examples/beam)] [[Code](https://github.com/NovaSky-AI/SkyRL/tree/beam-release/examples/train/models/reflection/beam)]
-- **[2026/09/01]** 🎉 We released an E2E recipe for long horizon knowledge work on SkyRL on the APEX-Agents dataset in collaboration with Mercor [[tweet](https://x.com/edwardjhu/status/2094897903290757588)] [[blog](https://www.mercor.com/blog/training-frontier-knowledge-work-agents-a-397b-rl-training-guide-with-skyrl/)]
-- **[2026/08/18]** 🎉 SkyRL is hosting it's first meetup at the Anyscale SF office! [[Link](https://luma.com/y4ahouh6)]
-- **[2026/07/16]** 🎉 SkyRL v0.3.0 is released [[Blog](https://novasky-ai.notion.site/skyrl-v03)]
-- **[2026/02/17]** 🎉 SkyRL is officially integrated with Harbor! Train your terminal-use agent! [[Blog](https://novasky-ai.notion.site/skyrl-harbor)]
-- **[2026/02/13]** 🎉 SkyRL now implements the Tinker API! Run any training script written in the Tinker API on your local GPUs with SkyRL! [[Blog](https://novasky-ai.notion.site/skyrl-tinker)]
-- **[2025/11/26]** 🎉 We released SkyRL-Agent: An agent layer for efficient, multi-turn, long-horizon agent training and evaluation. [[Paper](https://arxiv.org/pdf/2511.16108)]
-- **[2025/10/06]** 🎉 We released SkyRL tx: An open implementation of a backend for the Tinker API to run a Tinker-like service on their own hardware. [[Blog](https://novasky-ai.notion.site/skyrl-tx)]
-- **[2025/06/26]** 🎉 We released SkyRL-v0.1: A highly-modular, performant RL training framework. [[Blog](https://novasky-ai.notion.site/skyrl-v01)]
-- **[2025/06/26]** 🎉 We released SkyRL-Gym: A library of RL environments for LLMs implemented with the Gymnasium API. [[Blog](https://novasky-ai.notion.site/skyrl-v01)]
-- **[2025/05/20]** 🎉 We released SkyRL-SQL: a multi-turn RL training pipeline for Text-to-SQL, along with SkyRL-SQL-7B — a model trained on just 653 samples that outperforms both GPT-4o and o4-mini!
-- **[2025/05/06]** 🎉 We released SkyRL-v0: our open RL training pipeline for multi-turn tool use LLMs, optimized for long-horizon, real-environment tasks like SWE-Bench!
-
-# Links
-- 📜 [Training frontier knowledge work agents: A 397B RL training guide with SkyRL](https://www.mercor.com/blog/training-frontier-knowledge-work-agents-a-397b-rl-training-guide-with-skyrl/)
-- 📜 [SkyRL Ray Summit Slides](https://docs.google.com/presentation/d/1GYeVaCer0oRTTsdoCgsbHhwMY4_RGoYQlcAzUIPyd-0/edit?usp=sharing)
-- 📜 [SkyRL Meetup Slides](https://docs.google.com/presentation/d/1vYTiLShiesgWftBo3o8zZJG5bGhy4RMFhvlgd_wESrE/edit?usp=sharing)
-- 📜 [SkyRL v0.3.0 Release](https://novasky-ai.notion.site/skyrl-v03)
-- 📜 [Multi-LoRA Training for Continual Learning (w/ Trajectory)](https://trajectory.ai/field-notes/multi-lora-training-for-continual-learning)
-- 📜 [Native RL APIs in vLLM](https://vllm.ai/blog/2026-05-28-native-rl-apis)
-- 📜 [Train Your Terminal-Use Agent with SkyRL + Harbor](https://novasky-ai.notion.site/skyrl-harbor)
-- 📜 [SkyRL Brings Tinker to Your GPUs](https://novasky-ai.notion.site/skyrl-tinker)
-- 📜 [Fully Async RL with In-Flight Weight Updates in SkyRL](https://docs.skyrl.ai/docs/tutorials/fully_async)
-- 📜 [Open Recipes on SkyRL](https://docs.skyrl.ai/docs/recipes/overview)
-- 📜 [SkyRL-Agent Paper](https://arxiv.org/pdf/2511.16108)
-- 📜 [On-Policy Distillation on SkyRL Blog Post](https://novasky-ai.notion.site/on-policy-distillation)
-- 📜 [Search-R1 on SkyRL Blog Post](https://novasky-ai.notion.site/skyrl-searchr1)
-- 📜 [SkyRL-v0.1 Blog Post](https://novasky-ai.notion.site/skyrl-v01)
-- 📜 [SkyRL-SQL Blog Post](https://novasky-ai.notion.site/skyrl-sql)
-- 📜 [SkyRL-v0 Blog Post](https://novasky-ai.notion.site/skyrl-v0)
-
-# Projects using SkyRL
-- [Biomni-R0](https://biomni.stanford.edu/blog/biomni-r0-technical-report/): Using RL to Hill-Climb Biomedical Reasoning Agents to Expert-Level ![GitHub Repo stars](https://img.shields.io/github/stars/snap-stanford/Biomni)
-- [How to Train Your Advisor](https://github.com/az1326/advisor-models): Steering Black-Box LLMs with Advisor Models ![GitHub Repo stars](https://img.shields.io/github/stars/az1326/advisor-models)
-- [OpenThoughts-Agent](https://github.com/open-thoughts/OpenThoughts-Agent): Data recipes and robust infrastructure for training AI agents ![GitHub Repo stars](https://img.shields.io/github/stars/open-thoughts/OpenThoughts-Agent)
-- [Endless Terminals](https://arxiv.org/abs/2601.16443): A fully autonomous pipeline that procedurally generates terminal tasks for RL training with no human annotation needed ![GitHub Repo stars](https://img.shields.io/github/stars/kanishkg/endless-terminals)
-- [CodeScout](https://arxiv.org/abs/2603.17829): Open-source SoTA code localization on SWE-Bench via RL ![GitHub Repo stars](https://img.shields.io/github/stars/OpenHands/codescout)
-- [Reinforcing Recursive Language Models](https://www.alphaxiv.org/blog/reinforcement-learning-for-rlms): RL fine-tuning small models to behave as recursive language models
-- [ECHO](https://arxiv.org/abs/2605.24517): Terminal Agents Learn World Models for Free
-
-# Acknowledgement
-
-This work is done at [**Berkeley Sky Computing Lab**](https://sky.cs.berkeley.edu/) in collaboration with [**Anyscale**](https://www.anyscale.com/), with generous compute support from [**Anyscale**](https://www.anyscale.com/), [**Databricks**](https://www.databricks.com/), [**NVIDIA**](https://developer.nvidia.com/brev), [**Lambda Labs**](https://lambdalabs.com/service/gpu-cloud?srsltid=AfmBOop5FnmEFTkavVtdZDsLWvHWNg6peXtat-OXJ9MW5GMNsk756PE5), [**AMD**](https://www.amd.com/en), [**AWS**](https://aws.amazon.com/), [**Modal**](https://modal.com/), and [**Daytona**](https://www.daytona.io/).
-
-We adopt many lessons and code from several great projects such as [veRL](https://github.com/volcengine/verl), [OpenRLHF](https://github.com/OpenRLHF/OpenRLHF), [Search-R1](https://github.com/PeterGriffinJin/Search-R1), [OpenReasonerZero](https://github.com/Open-Reasoner-Zero/Open-Reasoner-Zero), and [NeMo-RL](https://github.com/NVIDIA-NeMo/RL). We appreciate each of these teams and their contributions to open-source research!
-
-
-# Citation
-
-If you find the work in this repository helpful, please consider citing:
-
-```bibtex
-@misc{cao2025skyrl,
-  title     = {SkyRL-v0: Train Real-World Long-Horizon Agents via Reinforcement Learning},
-  author    = {Shiyi Cao and Sumanth Hegde and Dacheng Li and Tyler Griggs and Shu Liu and Eric Tang and Jiayi Pan and Xingyao Wang and Akshay Malik and Graham Neubig and Kourosh Hakhamaneshi and Richard Liaw and Philipp Moritz and Matei Zaharia and Joseph E. Gonzalez and Ion Stoica},
-  year      = {2025},
-}
+```powershell
+$uv = 'C:/Users/steve/.codex/tools/uv-0.13.4/uv-0.13.4.data/scripts/uv.exe'
+$ml = 'C:/Users/steve/.codex/tools/coursework-ml/Scripts/python.exe'
+& $uv run --isolated --no-project $ml scripts/verify_async_rl.py doctor
+& $uv run --isolated --no-project $ml scripts/verify_async_rl.py drive --output .evidence/my-new-run
+& $uv run --isolated --no-project $ml scripts/verify_async_rl.py evidence --output .evidence/my-new-run
+& $uv run --isolated --no-project $ml scripts/verify_async_rl.py cleanup --output .evidence/my-new-run
 ```
 
-```bibtex
-@misc{liu2025skyrlsql,
-      title={SkyRL-SQL: Matching GPT-4o and o4-mini on Text2SQL with Multi-Turn RL},
-      author={Shu Liu and Sumanth Hegde and Shiyi Cao and Alan Zhu and Dacheng Li and Tyler Griggs and Eric Tang and Akshay Malik and Kourosh Hakhamaneshi and Richard Liaw and Philipp Moritz and Matei Zaharia and Joseph E. Gonzalez and Ion Stoica},
-      year={2025},
-}
+Choose an unused output directory. Coordinate exclusive CUDA access before driving. The explicit executable is deliberate. `uv run --isolated --no-project $ml` launches that existing interpreter without resolving SkyRL or modifying its environment. It does not create an isolated copy of the ML packages. The project itself requires Python >=3.12 and different dependency pins.
+
+The reference freezes the pretrained Transformer and trains ten existing output-head rows, with 10,240 trainable parameters. It unties the head so input embeddings stay frozen. Actions choose one of two owned arithmetic tools and then a decimal answer. Each group has two sampled trajectories. Async tasks retain partial trajectories across weight updates, and an asyncio queue delivers completed groups to the shared strict fence. Paused tasks interleave cooperatively on one GPU; this is not a measurement of concurrent kernel throughput.
+
+The loss uses sampled outcome rewards, a fixed baseline, stored action log probabilities, and a clipped importance ratio. No supervised target loss drives the update. Frozen context features can be cached because only the output head changes. Float32 head rows drive sampling and optimization; their updates are also copied into the real model's bfloat16 output head. The checkpoint saves exact float32 rows and their delta in safetensors, plus versions and terminal UIDs in JSON. Reload verifies exact head equality, skips terminal UIDs, and generates a fresh trajectory. Stateless SGD needs no optimizer tensor checkpoint.
+
+The retained October 21, 2026 run in `.evidence/final-reference/` completed four updates and trained eight groups. Three trained groups contain action versions `[0,1]`, `[1,2]`, and `[2,3]`. The straggler with versions `[0,2]` was filtered once. The real model head changed by L2 `0.0690855`. Heldout expected reward over four disjoint arithmetic prompts changed from `0.760472` to `0.543493`, with the full five-point curve in `metrics.json`. This small run demonstrates mechanics and showed a reward decrease. It makes no convergence, quality, speedup, or scaling-law claim.
+
+## Verify changes
+
+The maintained [verification skill](.agents/skills/verify-async-rl-training/SKILL.md) and [feature map](.agents/skills/verify-async-rl-training/features/README.md) describe the complete local journey and the native gap.
+
+```powershell
+$env:PYTHONPATH='.'
+& $uv run --isolated --no-project $ml -m unittest discover -s tests/local_async -v
 ```
 
-```bibtex
-@misc{griggs2025skrylv01,
-      title={Evolving SkyRL into a Highly-Modular RL Framework},
-      author={Tyler Griggs and Sumanth Hegde and Eric Tang and Shu Liu and Shiyi Cao and Dacheng Li and Charlie Ruan and Philipp Moritz and Kourosh Hakhamaneshi and Richard Liaw and Akshay Malik and Matei Zaharia and Joseph E. Gonzalez and Ion Stoica},
-      year={2025},
-      note={Notion Blog}
-}
-```
+The eight dependency-free checks cover fence boundaries, duplicate delivery, finite exhaustion, default warning-only behavior, rejection capacity, trained-versus-filtered resume accounting, and reference-worker startup failure. Some compile selected source method bodies without importing their dependencies. Those are source-sliced unit tests, not full trainer integration. The added native test in `tests/train/test_fully_async_trainer.py` uses the real imported trainer and dataloader on a supported environment.
+
+Native validation remains unexecuted. This Windows machine's shared ML interpreter has no Ray or torchdata and uses Python 3.11 and Transformers 5.20.2, outside upstream's pins. An offline attempt to run the upstream CPU command failed before collection on uncached `polars-runtime-32`. Full training additionally needs the supported Linux FSDP/vLLM/NCCL setup. No distributed or production checkpoint execution is claimed.
+
+The isolated uv 0.13.4 tool came from official PyPI. Its retained wheel SHA256 is `b2ff80397273fff0e02c20eacae6882834c811827d6fc08f658db156fe754386`. Its Apache/MIT license metadata remains alongside the tool. No project dependency was added. The shared Torch environment has the documented unused `torch.jit.script` advisory `GHSA-rrmf-rvhw-rf47`; this path does not invoke TorchScript, and no zero-vulnerability claim is made.
