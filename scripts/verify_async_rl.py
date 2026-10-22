@@ -1,9 +1,11 @@
 """Drive the local pretrained reference; never installs or downloads dependencies."""
 
 import argparse
+import ctypes
 import json
 import os
 import platform
+import shutil
 import sys
 from pathlib import Path
 
@@ -11,6 +13,43 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 REVISION = "c1899de289a04d12100db370d81485cdf75e47ca"
 MODEL = Path.home() / ".cache/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots" / REVISION
+
+
+def capacity_guard(path):
+    free_disk = shutil.disk_usage(path).free
+    if free_disk < 10 * 1024**3:
+        raise SystemExit(f"Study requires 10 GiB free disk; found {free_disk / 1024**3:.1f} GiB")
+    if os.name == "nt":
+
+        class MemoryStatus(ctypes.Structure):
+            _fields_ = [
+                ("length", ctypes.c_ulong),
+                ("memory_load", ctypes.c_ulong),
+                ("total_phys", ctypes.c_ulonglong),
+                ("avail_phys", ctypes.c_ulonglong),
+                ("total_page", ctypes.c_ulonglong),
+                ("avail_page", ctypes.c_ulonglong),
+                ("total_virtual", ctypes.c_ulonglong),
+                ("avail_virtual", ctypes.c_ulonglong),
+                ("avail_extended_virtual", ctypes.c_ulonglong),
+            ]
+
+        status = MemoryStatus()
+        status.length = ctypes.sizeof(status)
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            raise SystemExit("Could not read available system memory")
+        available = status.avail_phys
+    else:
+        available = os.sysconf("SC_AVPHYS_PAGES") * os.sysconf("SC_PAGE_SIZE")
+    if available < 8 * 1024**3:
+        raise SystemExit(f"Study requires 8 GiB available system memory; found {available / 1024**3:.1f} GiB")
+    import torch
+
+    if not torch.cuda.is_available():
+        raise SystemExit("CUDA is required for the matched study")
+    free_vram, _ = torch.cuda.mem_get_info(0)
+    if free_vram < 4 * 1024**3:
+        raise SystemExit(f"Study requires 4 GiB free CUDA memory; found {free_vram / 1024**3:.1f} GiB")
 
 
 def doctor():
@@ -63,8 +102,12 @@ def evidence(output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["doctor", "drive", "evidence", "cleanup"])
+    parser.add_argument(
+        "command",
+        choices=["doctor", "drive", "evidence", "cleanup", "study-prepare", "study-run", "study-select", "study-test"],
+    )
     parser.add_argument("--output", type=Path, default=ROOT / ".evidence/local-reference")
+    parser.add_argument("--study", type=Path, default=ROOT / ".evidence/matched-study")
     args = parser.parse_args()
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
@@ -75,6 +118,28 @@ def main():
         from examples.local_async.train import run
 
         run(MODEL, args.output)
+    elif args.command == "study-prepare":
+        doctor()
+        capacity_guard(args.study.parent)
+        from examples.local_async.train import prepare_study
+
+        prepare_study(MODEL, args.study)
+    elif args.command == "study-run":
+        doctor()
+        capacity_guard(args.study)
+        from examples.local_async.train import run_study
+
+        run_study(MODEL, args.study)
+    elif args.command == "study-select":
+        from examples.local_async.train import select_study
+
+        select_study(MODEL, args.study)
+    elif args.command == "study-test":
+        doctor()
+        capacity_guard(args.study)
+        from examples.local_async.train import test_study
+
+        test_study(MODEL, args.study)
     else:
         evidence(args.output)
         if args.command == "cleanup":

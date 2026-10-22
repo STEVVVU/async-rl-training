@@ -19,13 +19,13 @@ This separate backend runs on the observed Windows Python 3.11 environment. It u
 ```powershell
 $uv = 'C:/Users/steve/.codex/tools/uv-0.13.4/uv-0.13.4.data/scripts/uv.exe'
 $ml = 'C:/Users/steve/.codex/tools/coursework-ml/Scripts/python.exe'
-& $uv run --isolated --no-project $ml scripts/verify_async_rl.py doctor
-& $uv run --isolated --no-project $ml scripts/verify_async_rl.py drive --output .evidence/my-new-run
-& $uv run --isolated --no-project $ml scripts/verify_async_rl.py evidence --output .evidence/my-new-run
-& $uv run --isolated --no-project $ml scripts/verify_async_rl.py cleanup --output .evidence/my-new-run
+& $uv run --isolated --no-project --python $ml -- cmd.exe /d /c $ml scripts/verify_async_rl.py doctor
+& $uv run --isolated --no-project --python $ml -- cmd.exe /d /c $ml scripts/verify_async_rl.py drive --output .evidence/my-new-run
+& $uv run --isolated --no-project --python $ml -- cmd.exe /d /c $ml scripts/verify_async_rl.py evidence --output .evidence/my-new-run
+& $uv run --isolated --no-project --python $ml -- cmd.exe /d /c $ml scripts/verify_async_rl.py cleanup --output .evidence/my-new-run
 ```
 
-Choose an unused output directory. Coordinate exclusive CUDA access before driving. The explicit executable is deliberate. `uv run --isolated --no-project $ml` launches that existing interpreter without resolving SkyRL or modifying its environment. It does not create an isolated copy of the ML packages. The project itself requires Python >=3.12 and different dependency pins.
+Choose an unused output directory. Coordinate exclusive CUDA access before driving. The Windows `cmd.exe` invocation explicitly launches the existing ML interpreter without resolving SkyRL or modifying its environment. Passing the Python script directly to `uv run --isolated --python $ml` creates an environment without those ML packages. The documented command does not isolate the existing ML packages. The project itself requires Python >=3.12 and different dependency pins.
 
 The reference freezes the pretrained Transformer and trains ten existing output-head rows, with 10,240 trainable parameters. It unties the head so input embeddings stay frozen. Actions choose one of two owned arithmetic tools and then a decimal answer. Each group has two sampled trajectories. Async tasks retain partial trajectories across weight updates, and an asyncio queue delivers completed groups to the shared strict fence. Paused tasks interleave cooperatively on one GPU; this is not a measurement of concurrent kernel throughput.
 
@@ -33,16 +33,18 @@ The loss uses sampled outcome rewards, a fixed baseline, stored action log proba
 
 The retained October 21, 2026 run in `.evidence/final-reference/` completed four updates and trained eight groups. Three trained groups contain action versions `[0,1]`, `[1,2]`, and `[2,3]`. The straggler with versions `[0,2]` was filtered once. The real model head changed by L2 `0.0690855`. Heldout expected reward over four disjoint arithmetic prompts changed from `0.760472` to `0.543493`, with the full five-point curve in `metrics.json`. This small run demonstrates mechanics and showed a reward decrease. It makes no convergence, quality, speedup, or scaling-law claim.
 
+An opt-in matched study adapter is being prepared for a frozen five-seed comparison. It uses one canonical 55-pair manifest, 35/10/10 train/validation/test splits, paired seeds `11, 23, 37, 51, 71`, and 256 updates of two groups per update. Sync and async share the sampled-reward update; async carries partial actions across one version and records its extra tail work. It measures one event loop with serialized CUDA kernels, not concurrent GPU throughput. Sampling and evaluation use BF16 features and installed BF16 output rows, with float32 sampling logits and an FP32 master head whose update forward is BF16. Cached backbone features must match full-model digit logits within one BF16 ULP. Each run records per-action versions, tokens, terminal decisions, precision checks, checkpoint reloads, timings, and hashes. Steps 32, 128, and 256 are selected by validation expected reward only; both expected reward and answer success are reported against the untouched initial head with per-pair values and paired seed deltas. The separate `study-test` action recomputes the frozen selection and verifies all run, source, model, and checkpoint hashes before reading test pairs. The study driver and verification path are draft-only and have not been run; no study quality result is claimed.
+
 ## Verify changes
 
 The maintained [verification skill](.agents/skills/verify-async-rl-training/SKILL.md) and [feature map](.agents/skills/verify-async-rl-training/features/README.md) describe the complete local journey and the native gap.
 
 ```powershell
 $env:PYTHONPATH='.'
-& $uv run --isolated --no-project $ml -m unittest discover -s tests/local_async -v
+& $uv run --isolated --no-project --python $ml -m unittest discover -s tests/local_async -v
 ```
 
-The thirteen dependency-free checks cover fence boundaries, duplicate delivery, finite exhaustion, default warning-only behavior, rejection capacity, trained-versus-filtered resume accounting, checkpoint step/capacity alignment including zero updates and partial exhaustion, and reference-worker startup failure. Some compile selected source method bodies with controlled IO without importing their dependencies. Those are source-sliced unit tests, not full trainer integration. The added native test in `tests/train/test_fully_async_trainer.py` uses the real imported trainer and dataloader on a supported environment.
+The twenty dependency-free checks cover fence boundaries, duplicate delivery, finite exhaustion, default warning-only behavior, rejection capacity, trained-versus-filtered resume accounting, checkpoint step/capacity alignment including zero updates and partial exhaustion, reference-worker startup failure, and matched-study split, schedule, RNG, action-token accounting, heldout prompt isolation, run-inventory, and selection-receipt invariants. Some compile selected source method bodies with controlled IO without importing their dependencies. Those are source-sliced unit tests, not full trainer integration. The added native test in `tests/train/test_fully_async_trainer.py` uses the real imported trainer and dataloader on a supported environment.
 
 [Local CPU CI](.github/workflows/local_cpu.yaml) runs those tests and static/lint checks without loading a model. Its downloadable artifact contains [retained real CUDA measurements](verification/pretrained-reference/README.md), including the reward decline, and is explicitly labeled historical evidence. Original upstream workflow contents remain in [.github/upstream-workflows](.github/upstream-workflows/README.md), where their Anyscale and upstream-specific triggers do not execute.
 

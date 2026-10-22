@@ -10,7 +10,7 @@ Set `trainer.fully_async.strict_staleness=true` in the normal fully async upstre
 
 ## Driving it with tests
 
-Run `uv run --isolated --extra skyrl-train --extra dev pytest tests/train/test_fully_async_trainer.py` on a supported Linux environment. On Windows set `PYTHONPATH=.` and use the skill's explicit existing interpreter with `uv run --isolated --no-project <interpreter> -m unittest discover -s tests/local_async -v`.
+Run `uv run --isolated --extra skyrl-train --extra dev pytest tests/train/test_fully_async_trainer.py` on a supported Linux environment. On Windows set `PYTHONPATH=.` and run the dependency-free suite with `uv run --isolated --no-project --python <interpreter> -m unittest discover -s tests/local_async -v`. Model stages require the explicit-interpreter command in the verification skill.
 
 ## Gotchas
 
