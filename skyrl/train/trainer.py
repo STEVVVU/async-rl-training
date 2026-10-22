@@ -1725,15 +1725,17 @@ class RayPPOTrainer:
         actor_info: ActorInfo = model.actor_infos[rank]
         return actor_info.rank
 
-    def save_checkpoints(self) -> str:
+    def save_checkpoints(self, global_step: Optional[int] = None) -> str:
         """
         Save the model, optimizer, and training states to disk. Returns the
         checkpoint folder path.
 
         Dispatch handles offload/backload automatically for all colocation configurations.
+        An explicit global_step records a completed update without changing the live working step.
         """
+        global_step = self.global_step if global_step is None else global_step
         # Create global step folder structure
-        global_step_folder = os.path.join(self.cfg.trainer.ckpt_path, f"global_step_{self.global_step}")
+        global_step_folder = os.path.join(self.cfg.trainer.ckpt_path, f"global_step_{global_step}")
         policy_save_dir = os.path.join(global_step_folder, "policy")
         critic_save_dir = os.path.join(global_step_folder, "critic")
 
@@ -1758,7 +1760,7 @@ class RayPPOTrainer:
 
         # Save additional trainer state
         trainer_state = {
-            "global_step": self.global_step,
+            "global_step": global_step,
             "config": asdict(self.cfg),
         }
         trainer_state_path = os.path.join(global_step_folder, "trainer_state.pt")
@@ -1769,9 +1771,9 @@ class RayPPOTrainer:
         # Atomic tracking - write this last after all saves succeed
         latest_checkpoint_file = os.path.join(self.cfg.trainer.ckpt_path, "latest_ckpt_global_step.txt")
         with io.open_file(latest_checkpoint_file, "w") as f:
-            f.write(str(self.global_step))
+            f.write(str(global_step))
 
-        logger.info(f"Successfully saved checkpoint for global_step_{self.global_step} to: {global_step_folder}")
+        logger.info(f"Successfully saved checkpoint for global_step_{global_step} to: {global_step_folder}")
 
         # Clean up old checkpoints after successful save
         with Timer("cleanup_old_checkpoints", self.all_timings):

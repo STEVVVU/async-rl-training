@@ -1,0 +1,38 @@
+{
+  "version": 4,
+  "terminal_uids": {
+    "fast-0-0": "keep",
+    "fast-0-1": "keep",
+    "carry-0": "keep",
+    "fast-1-0": "keep",
+    "carry-1": "keep",
+    "straggler": "stale",
+    "fast-2-0": "keep",
+    "carry-2": "keep",
+    "fast-3-0": "keep",
+    "carry-3": "epoch_tail_filtered"
+  },
+  "trained_uids": [
+    "fast-0-0",
+    "fast-0-1",
+    "carry-0",
+    "fast-1-0",
+    "carry-1",
+    "fast-2-0",
+    "carry-2",
+    "fast-3-0"
+  ],
+  "model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+  "token_ids": [
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24
+  ]
+}

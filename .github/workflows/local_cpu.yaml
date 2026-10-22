@@ -1,0 +1,54 @@
+name: Local CPU checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-cpu-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local_checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.13.4'
+      - name: Dependency-free behavioral checks
+        env:
+          PYTHONPATH: .
+        run: uv run --isolated --no-project python -m unittest discover -s tests/local_async -v
+      - name: Lint changed Python modules
+        run: >-
+          uv run --isolated --no-project --with ruff==0.11.9 ruff check
+          skyrl/train/staleness.py skyrl/train/trainer.py skyrl/train/fully_async_trainer.py
+          skyrl/train/config/config.py tests/local_async tests/train/test_fully_async_trainer.py
+          scripts/verify_async_rl.py examples/local_async
+      - name: Check formatting
+        run: >-
+          uv run --isolated --no-project --with black==24.10.0 black --check
+          skyrl/train/staleness.py skyrl/train/trainer.py skyrl/train/fully_async_trainer.py
+          skyrl/train/config/config.py tests/local_async tests/train/test_fully_async_trainer.py
+          scripts/verify_async_rl.py examples/local_async
+      - name: Compile reference and driver without importing model dependencies
+        run: uv run --isolated --no-project python -m compileall -q scripts/verify_async_rl.py examples/local_async
+      - name: State verification limits
+        run: |
+          echo 'CPU unit and static checks only. No pretrained model or native distributed backend runs in this job.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'The artifact contains retained measurements from a separate October 21, 2026 CUDA run. Heldout reward decreased.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retained-pretrained-reference-measurements
+          path: verification/pretrained-reference/
+          if-no-files-found: error

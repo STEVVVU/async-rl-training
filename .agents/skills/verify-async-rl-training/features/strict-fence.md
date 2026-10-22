@@ -2,7 +2,7 @@
 
 ## Sub-features
 
-Opt-in age bound, group-atomic stale discard, UID duplicate suppression, filtered accounting, finite epoch exhaustion, and checkpoint resume.
+Opt-in age bound, group-atomic stale discard, UID duplicate suppression, filtered accounting, finite epoch exhaustion, completed-step checkpoint numbering, zero-update UID restoration, and checkpoint resume capacity alignment.
 
 ## How to get to it (user POV)
 

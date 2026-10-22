@@ -1,6 +1,8 @@
 # CI
 
-- **Workflows**: `.github/workflows/{cpu,gpu,tinker}_*.yaml`.
+This checkout preserves upstream workflow YAML under `.github/upstream-workflows/`, outside GitHub's executable workflow directory. Its README records two normalized final newlines. The tables below describe that reference configuration. Its upstream-specific push, label, and Anyscale integrations are inactive here. `.github/workflows/local_cpu.yaml` runs dependency-free local tests, scoped Ruff and Black checks, and static reference-driver compilation. It uploads historical metrics from `verification/pretrained-reference/` and explicitly does not claim model or native backend execution. All native suites and their documented commands remain available for a supported environment.
+
+- **Preserved upstream workflows**: `.github/upstream-workflows/{cpu,gpu,tinker}_*.yaml`.
 - **Runner glue**: `ci/anyscale_*.yaml` (Anyscale job spec) → `ci/gpu_*_run*.sh` (pytest invocation).
 
 ## Workflow namespaces

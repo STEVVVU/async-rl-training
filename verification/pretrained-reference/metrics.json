@@ -1,0 +1,72 @@
+{
+  "updates": 4,
+  "losses": [
+    -0.25,
+    -0.19317644834518433,
+    -2.1167099475860596e-05,
+    -0.25026819109916687
+  ],
+  "parameter_delta_l2": 0.06897610425949097,
+  "actual_model_head_delta_l2": 0.06908554583787918,
+  "mixed_version_groups": [
+    {
+      "uid": "carry-0",
+      "versions": [
+        0,
+        1
+      ]
+    },
+    {
+      "uid": "carry-1",
+      "versions": [
+        1,
+        2
+      ]
+    },
+    {
+      "uid": "carry-2",
+      "versions": [
+        2,
+        3
+      ]
+    }
+  ],
+  "heldout_curve": [
+    {
+      "version": 0,
+      "heldout_expected_reward": 0.7604722731048241
+    },
+    {
+      "version": 1,
+      "heldout_expected_reward": 0.7088847499510109
+    },
+    {
+      "version": 2,
+      "heldout_expected_reward": 0.7682195682691599
+    },
+    {
+      "version": 3,
+      "heldout_expected_reward": 0.44005831319259414
+    },
+    {
+      "version": 4,
+      "heldout_expected_reward": 0.5434925083848157
+    }
+  ],
+  "trained_groups": 8,
+  "terminal_groups": {
+    "fast-0-0": "keep",
+    "fast-0-1": "keep",
+    "carry-0": "keep",
+    "fast-1-0": "keep",
+    "carry-1": "keep",
+    "straggler": "stale",
+    "fast-2-0": "keep",
+    "carry-2": "keep",
+    "fast-3-0": "keep",
+    "carry-3": "epoch_tail_filtered"
+  },
+  "seed": 15,
+  "scope": "Qwen3-0.6B frozen backbone, ten pretrained output rows, constrained actions",
+  "native_distributed_backend": "not executed"
+}
