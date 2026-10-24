@@ -113,7 +113,10 @@ jobs:
               assert [row['pair'] for row in rows] == pairs[:256]
               for metric in ('answer_success', 'expected_reward'):
                   assert all(math.isfinite(row[metric]) for row in rows)
-                  assert sum(row[metric] for row in rows) / 256 == result[metric]
+                  total = 0.0
+                  for row in rows:
+                      total += row[metric]
+                  assert total / 256 == result[metric]
               assert fresh['oracle_checks'][name]['max_ulp'] <= 1
           assert fresh['oracle_pair_indices'] == list(range(16))
           for name, path in [('reference_train', 'examples/local_async/train.py'), ('head_quality_driver', 'scripts/verify_head_quality.py'), ('fresh_holdout_driver', 'scripts/verify_fresh_head_holdout.py')]:
