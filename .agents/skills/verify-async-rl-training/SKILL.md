@@ -65,3 +65,18 @@ Review `selection.json` before the separate GPU test. The test verifies selectio
 ```powershell
 & $uv run --isolated --no-project --python $ml -- cmd.exe /d /c $ml scripts/verify_head_quality.py test --features-from .evidence/matched-study --model "$env:USERPROFILE/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca" --output .evidence/head-quality
 ```
+
+## Fresh wider-operand holdout
+
+This confirmatory evaluation freezes the existing selection and model identities, then evaluates the initial head and all ten selected heads on 256 newly generated unordered pairs with operands 10 through 99. The fixed Python shuffle seed is 20261024. The inputs use the existing `_prompts` arithmetic tool contract and `_evaluate_study` expected-reward calculation. This is evidence about wider-operand arithmetic distribution shift, not general language-model quality. The full-model BF16 logit oracle runs on the first 16 frozen pairs for every head; all 256 pairs use actual cached-backbone features. Evaluation requires 10 GiB free disk, caps Torch CPU threads at one, and stops starting new prompt/head work after a 600-second inference limit.
+
+First freeze the inputs in a new evidence directory. Review the emitted `freeze_sha256` before the separate evaluation action. Evaluation requires that exact digest, verifies all frozen source, model, selection, training, input, and checkpoint identities, and recomputes the inventory and validation-only selection before its first new prompt or model forward. Evaluation never overwrites a receipt; errors are retained in `failure.json`.
+
+```powershell
+$selection = '.evidence/cpu-head-quality-20261024-final'
+$model = "$env:USERPROFILE/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca"
+& $uv run --isolated --no-project --python $ml -- cmd.exe /d /c $ml scripts/verify_fresh_head_holdout.py freeze --selection-dir $selection --model $model --output .evidence/fresh-head-holdout-20261024-final-v4
+& $uv run --isolated --no-project --python $ml -- cmd.exe /d /c $ml scripts/verify_fresh_head_holdout.py evaluate --output .evidence/fresh-head-holdout-20261024-final-v4 --freeze-sha256 <reviewed-freeze-sha256>
+```
+
+`freeze` is standard-library-only and performs no prompt construction, model import, or inference. `evaluate` uses the existing local model interpreter and cached model assets. The result records every per-pair metric, each head's 16-pair oracle check, elapsed time, peak RSS and CUDA memory, and the frozen protocol identity. A negative result remains valid.

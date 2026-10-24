@@ -1,0 +1,10 @@
+{
+  "freeze.json": {
+    "sha256": "8222d784045dfa3c7329d43aa84d80ccd4eb1df96fcb7b17056d34b221862a34",
+    "line_endings": "crlf"
+  },
+  "test.json": {
+    "sha256": "279ca0ecdebc933a4364a1220cf7cea82e36b72701091c65970a804ec7a5cda2",
+    "line_endings": "crlf"
+  }
+}
