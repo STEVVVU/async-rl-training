@@ -4,6 +4,127 @@ This project adds opt-in strict policy-age fencing and a bounded pretrained-mode
 
 The coursework source is [Asynchronous Agentic Reinforcement Learning](https://people.eecs.berkeley.edu/~kubitron/courses/cs262a-F25/projects/reports/project1008_paper_ver2_72488057446561351955.pdf), by Charlie Ruan, Hanchen Li, and Jiaxiang Yu for Berkeley CS262a Fall 2025. The [official fully async tutorial](https://docs.skyrl.ai/docs/tutorials/fully_async) describes the framework mechanism. This checkout is based on current official SkyRL, not a verified copy of the students' exact experimental branch. Their scaling-law and throughput experiments have not been reproduced.
 
+## Contents
+
+- [Architecture and execution guide](#architecture-and-execution-guide)
+- [Resource-light quality repair](#resource-light-quality-repair)
+- [Enable strict fencing in SkyRL](#enable-strict-fencing-in-skyrl)
+- [Run the local pretrained reference](#run-the-local-pretrained-reference)
+- [Verify changes](#verify-changes)
+- [License](LICENSE)
+
+## Architecture and execution guide
+
+This repository retains SkyRL and adds opt-in strict age checks to the fully asynchronous PPO trainer, plus a separate bounded local reference. The native trainer uses distributed rollout and training backends; the local reference reuses the fence with a small frozen Qwen model. It does not validate native distributed execution. A [rollout group](#rollout-group) carries a UID and scheduling stamp through the [policy age](#policy-age) check.
+
+The top-level flow separates producers from the training consumer. Eligible groups reach PPO; stale and duplicate groups do not.
+
+```mermaid
+flowchart LR
+  N1["Epoch data and config"] --> N2["Async rollout workers"]
+  N2["Async rollout workers"] --> N3["Completed groups with stamp"]
+  N3["Completed groups with stamp"] --> N4["Strict age fence"]
+  N4["Strict age fence"] -->|"eligible"| N5["PPO mini-batch and update"]
+  N4["Strict age fence"] -->|"stale or duplicate"| N6["Filter UID and return capacity"]
+  N5["PPO mini-batch and update"] --> N7["New policy step and checkpoint"]
+  N7["New policy step and checkpoint"] --> N8["Rollout workers"]
+```
+
+The inner lifecycle shows capacity and checkpoint boundaries. Stale UIDs become terminal for the epoch; exhaustion filters a partial final mini-batch.
+
+```mermaid
+flowchart TD
+  subgraph producer["Rollout production"]
+    N1["Acquire bounded capacity"] --> N3["Capture scheduling step"]
+    N3 --> N2["Generate group"]
+    N2 --> Buffer["Enqueue completed group with captured stamp"]
+    N2 -->|"failure or cancellation"| N4["Worker rejection"]
+    N4 --> N5["Restore capacity"]
+  end
+  subgraph consumer["Training consumer"]
+    N6["Drain group"] --> N7["Check UID and policy age"]
+    N7["Check UID and policy age"] -->|"eligible"| N8["Build mini-batch"]
+    N7["Check UID and policy age"] -->|"stale"| N9["Record terminal UID"]
+    N7["Check UID and policy age"] -->|"duplicate"| N10["Skip repeated accounting"]
+    N8["Build mini-batch"] --> N11["PPO update"]
+    N9["Record terminal UID"] --> N12["Return capacity"]
+  end
+  Buffer --> N6
+  N11["PPO update"] --> N13["Save step and UID ledger"]
+  N13["Save step and UID ledger"] --> N14["Restore on resume"]
+  N6 -->|"Producers finished and queue empty"| N15["Epoch exhausted"]
+  N15 --> N16["Filter partial batch and save last completed step"]
+```
+
+| Subsystem | Responsibility and owned state | Source |
+| --- | --- | --- |
+| Fence | Validates UIDs and step values, then classifies a group as keep, stale, or duplicate. | [`staleness.py`](skyrl/train/staleness.py) |
+| Staleness manager | Tracks submitted, accepted, filtered, and running groups and gates producer capacity. | [`fully_async_trainer.py`](skyrl/train/fully_async_trainer.py) |
+| UID ledger | Tracks consumed and filtered data across epoch reset and checkpoint reload. | [`fully_async_trainer.py`](skyrl/train/fully_async_trainer.py) |
+| Native trainer | Starts per-epoch workers, drains groups, builds batches, updates policy, and saves checkpoints. | [`fully_async_trainer.py`](skyrl/train/fully_async_trainer.py) |
+| Local reference | Drives the cached model and checks retained bounded-run evidence. | [`train.py`](examples/local_async/train.py), [`verify_async_rl.py`](scripts/verify_async_rl.py) |
+| Regression checks | Cover boundaries, duplicates, exhaustion, capacity, and checkpoint behavior without native imports. | [`test_staleness.py`](tests/local_async/test_staleness.py), [`test_checkpoint_boundary.py`](tests/local_async/test_checkpoint_boundary.py) |
+
+Execution journey:
+
+1. SkyRL creates per-epoch dataloader state, bounded producer capacity, and rollout workers.
+2. A worker acquires capacity and captures the current scheduling step before generation. It enqueues the completed [rollout group](#rollout-group) with that stamp.
+3. The consumer drains the group and checks its UID and [policy age](#policy-age) against the current update step.
+4. Strict mode trains eligible groups. A stale group records a [terminal UID](#terminal-uid) and returns capacity; duplicate delivery does not repeat these effects.
+5. The trainer builds PPO input and updates the policy. At exhaustion, strict mode filters an incomplete mini-batch and may complete fewer updates.
+6. Checkpoints save the last completed step and UID ledgers. Resume restores filtered UIDs, including after zero updates. Worker failures propagate instead of leaving the consumer waiting indefinitely.
+
+| Choice | Current behavior and rationale inferred from code | Alternative and cost to reconsider |
+| --- | --- | --- |
+| Make strict mode opt-in | `strict_staleness=false` keeps warning-only admission for existing runs. | Changing the default alters training data and update counts. |
+| Stamp the scheduling step | Conservatively bounds oldest policy age through a group's generation. | Per-token stamps are more precise but add metadata and group-loss complexity. |
+| Make stale UIDs terminal per epoch | Prevents regeneration and makes duplicate deliveries idempotent. | Retrying under a new UID may repeat stale work and changes data accounting. |
+| Return capacity on terminal outcomes | Keeps producer accounting bounded as groups finish, fail, or are filtered. | Delayed release can stall producers; loose accounting can exceed configured capacity. |
+| Filter partial final batches | Preserves configured batch semantics but can reduce updates at exhaustion. | Training partial batches uses more samples but changes optimizer batch behavior. |
+| Keep local reference separate | Demonstrates mechanics on one GPU without implying native distributed validation. | Combining its result with native evidence would overstate backend coverage. |
+
+These are implementation tradeoffs, not recorded historical intent. The local run does not establish native throughput or general model quality.
+
+<a id="rollout-group"></a>
+
+<details><summary>What is a rollout group?</summary>
+
+A rollout group holds generated trajectories for one training UID. The local reference samples two trajectories per group.
+
+</details>
+
+<a id="policy-age"></a>
+
+<details><summary>What is policy age?</summary>
+
+Policy age is the difference between the current update step and a group's scheduling stamp. At a maximum age of one, age one is accepted and older groups are stale.
+
+</details>
+
+<a id="terminal-uid"></a>
+
+<details><summary>What is a terminal UID?</summary>
+
+A terminal UID is data that this epoch must not generate or consume again. Strict stale filtering records it for duplicate handling and checkpoint resume.
+
+</details>
+
+<a id="capacity-accounting"></a>
+
+<details><summary>What is capacity accounting?</summary>
+
+Capacity accounting tracks submitted, accepted, filtered, and running groups against the producer limit. The manager checks their balance at epoch end.
+
+</details>
+
+<a id="partial-mini-batch"></a>
+
+<details><summary>What is a partial mini-batch?</summary>
+
+A partial mini-batch has fewer eligible groups than configured when generation ends. Strict mode filters this tail, so an epoch may train fewer steps.
+
+</details>
+
 ## Resource-light quality repair
 
 On a separate [fresh wider-operand holdout](docs/fresh-head-holdout-20261024.md), the five frozen, validation-selected clipped heads averaged **49.91% expected correct-answer probability versus 40.20%** for the initial head across 256 new arithmetic pairs. Every seed improved. The evaluation took 61.50 seconds and 1.42 GiB peak Torch CUDA allocation. This is a constrained tool-and-digit policy expectation, not general model accuracy or 1,280 independent questions.
