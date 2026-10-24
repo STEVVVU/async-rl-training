@@ -1,0 +1,1127 @@
+{
+  "selection_sha256": "57761fb394ceef4ffaa1eeebf0418952c308d6bc325f6a20642f99222e559beb",
+  "partition": "reused heldout set",
+  "execution": "CPU training, GPU evaluation",
+  "gpu": "NVIDIA GeForce RTX 5080 Laptop GPU",
+  "torch": "2.11.0+cu128",
+  "cuda_runtime": "12.8",
+  "cached_logit_oracle": {
+    "max_ulp": 0.0,
+    "max_absolute_error": 0.0,
+    "projections": {
+      "2": {
+        "max_ulp": 0.0,
+        "max_absolute_error": 0.0
+      },
+      "10": {
+        "max_ulp": 0.0,
+        "max_absolute_error": 0.0
+      }
+    },
+    "tolerance_ulp": 1.0
+  },
+  "initial_test": {
+    "expected_reward": 0.7588822079046778,
+    "answer_success": 0.5629213121875338,
+    "per_pair": [
+      {
+        "pair": [
+          3,
+          9
+        ],
+        "expected_reward": 0.6127627189352058,
+        "answer_success": 0.415779917974665
+      },
+      {
+        "pair": [
+          2,
+          3
+        ],
+        "expected_reward": 0.7926481519503538,
+        "answer_success": 0.5859702084822599
+      },
+      {
+        "pair": [
+          1,
+          8
+        ],
+        "expected_reward": 0.7799137441424945,
+        "answer_success": 0.5911849943904498
+      },
+      {
+        "pair": [
+          7,
+          8
+        ],
+        "expected_reward": 0.7747858212384732,
+        "answer_success": 0.5778030202779324
+      },
+      {
+        "pair": [
+          5,
+          7
+        ],
+        "expected_reward": 0.7006435927453674,
+        "answer_success": 0.5090701815190948
+      },
+      {
+        "pair": [
+          3,
+          7
+        ],
+        "expected_reward": 0.8049405911387417,
+        "answer_success": 0.6029237904967282
+      },
+      {
+        "pair": [
+          1,
+          7
+        ],
+        "expected_reward": 0.7404466636694331,
+        "answer_success": 0.5461216934240718
+      },
+      {
+        "pair": [
+          8,
+          9
+        ],
+        "expected_reward": 0.8408910426079323,
+        "answer_success": 0.6413443478523781
+      },
+      {
+        "pair": [
+          4,
+          9
+        ],
+        "expected_reward": 0.6599267356941857,
+        "answer_success": 0.4629439347336449
+      },
+      {
+        "pair": [
+          5,
+          6
+        ],
+        "expected_reward": 0.8818630169245907,
+        "answer_success": 0.6960710327241131
+      }
+    ]
+  },
+  "selection_logit_checks": {
+    "clipped-seed-11": {
+      "max_ulp": 0.0,
+      "max_absolute_error": 0.0,
+      "projections": {
+        "2": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        },
+        "10": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        }
+      },
+      "tolerance_ulp": 1.0
+    },
+    "unclipped-seed-11": {
+      "max_ulp": 0.0,
+      "max_absolute_error": 0.0,
+      "projections": {
+        "2": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        },
+        "10": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        }
+      },
+      "tolerance_ulp": 1.0
+    },
+    "clipped-seed-23": {
+      "max_ulp": 0.0,
+      "max_absolute_error": 0.0,
+      "projections": {
+        "2": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        },
+        "10": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        }
+      },
+      "tolerance_ulp": 1.0
+    },
+    "unclipped-seed-23": {
+      "max_ulp": 0.0,
+      "max_absolute_error": 0.0,
+      "projections": {
+        "2": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        },
+        "10": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        }
+      },
+      "tolerance_ulp": 1.0
+    },
+    "clipped-seed-37": {
+      "max_ulp": 0.0,
+      "max_absolute_error": 0.0,
+      "projections": {
+        "2": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        },
+        "10": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        }
+      },
+      "tolerance_ulp": 1.0
+    },
+    "unclipped-seed-37": {
+      "max_ulp": 0.0,
+      "max_absolute_error": 0.0,
+      "projections": {
+        "2": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        },
+        "10": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        }
+      },
+      "tolerance_ulp": 1.0
+    },
+    "clipped-seed-51": {
+      "max_ulp": 0.0,
+      "max_absolute_error": 0.0,
+      "projections": {
+        "2": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        },
+        "10": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        }
+      },
+      "tolerance_ulp": 1.0
+    },
+    "unclipped-seed-51": {
+      "max_ulp": 0.0,
+      "max_absolute_error": 0.0,
+      "projections": {
+        "2": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        },
+        "10": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        }
+      },
+      "tolerance_ulp": 1.0
+    },
+    "clipped-seed-71": {
+      "max_ulp": 0.0,
+      "max_absolute_error": 0.0,
+      "projections": {
+        "2": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        },
+        "10": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        }
+      },
+      "tolerance_ulp": 1.0
+    },
+    "unclipped-seed-71": {
+      "max_ulp": 0.0,
+      "max_absolute_error": 0.0,
+      "projections": {
+        "2": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        },
+        "10": {
+          "max_ulp": 0.0,
+          "max_absolute_error": 0.0
+        }
+      },
+      "tolerance_ulp": 1.0
+    }
+  },
+  "results": {
+    "clipped-seed-11": {
+      "expected_reward": 0.8966380442651125,
+      "answer_success": 0.6573709602626179,
+      "per_pair": [
+        {
+          "pair": [
+            3,
+            9
+          ],
+          "expected_reward": 0.8870165840848381,
+          "answer_success": 0.6475385175212318
+        },
+        {
+          "pair": [
+            2,
+            3
+          ],
+          "expected_reward": 0.9763266804909301,
+          "answer_success": 0.735112896869142
+        },
+        {
+          "pair": [
+            1,
+            8
+          ],
+          "expected_reward": 1.0364339888888783,
+          "answer_success": 0.7990166486102528
+        },
+        {
+          "pair": [
+            7,
+            8
+          ],
+          "expected_reward": 0.9854717375376466,
+          "answer_success": 0.7453814418652299
+        },
+        {
+          "pair": [
+            5,
+            7
+          ],
+          "expected_reward": 0.9224958067061451,
+          "answer_success": 0.6843522732378986
+        },
+        {
+          "pair": [
+            3,
+            7
+          ],
+          "expected_reward": 0.8049930958019919,
+          "answer_success": 0.5643248287903494
+        },
+        {
+          "pair": [
+            1,
+            7
+          ],
+          "expected_reward": 1.085305122217005,
+          "answer_success": 0.8464753306711371
+        },
+        {
+          "pair": [
+            8,
+            9
+          ],
+          "expected_reward": 0.924303909786784,
+          "answer_success": 0.6842136141143673
+        },
+        {
+          "pair": [
+            4,
+            9
+          ],
+          "expected_reward": 0.8498372164845629,
+          "answer_success": 0.6097469208121462
+        },
+        {
+          "pair": [
+            5,
+            6
+          ],
+          "expected_reward": 0.49419630065234443,
+          "answer_success": 0.257547130134423
+        }
+      ]
+    },
+    "unclipped-seed-11": {
+      "expected_reward": 0.7588822079046778,
+      "answer_success": 0.5629213121875338,
+      "per_pair": [
+        {
+          "pair": [
+            3,
+            9
+          ],
+          "expected_reward": 0.6127627189352058,
+          "answer_success": 0.415779917974665
+        },
+        {
+          "pair": [
+            2,
+            3
+          ],
+          "expected_reward": 0.7926481519503538,
+          "answer_success": 0.5859702084822599
+        },
+        {
+          "pair": [
+            1,
+            8
+          ],
+          "expected_reward": 0.7799137441424945,
+          "answer_success": 0.5911849943904498
+        },
+        {
+          "pair": [
+            7,
+            8
+          ],
+          "expected_reward": 0.7747858212384732,
+          "answer_success": 0.5778030202779324
+        },
+        {
+          "pair": [
+            5,
+            7
+          ],
+          "expected_reward": 0.7006435927453674,
+          "answer_success": 0.5090701815190948
+        },
+        {
+          "pair": [
+            3,
+            7
+          ],
+          "expected_reward": 0.8049405911387417,
+          "answer_success": 0.6029237904967282
+        },
+        {
+          "pair": [
+            1,
+            7
+          ],
+          "expected_reward": 0.7404466636694331,
+          "answer_success": 0.5461216934240718
+        },
+        {
+          "pair": [
+            8,
+            9
+          ],
+          "expected_reward": 0.8408910426079323,
+          "answer_success": 0.6413443478523781
+        },
+        {
+          "pair": [
+            4,
+            9
+          ],
+          "expected_reward": 0.6599267356941857,
+          "answer_success": 0.4629439347336449
+        },
+        {
+          "pair": [
+            5,
+            6
+          ],
+          "expected_reward": 0.8818630169245907,
+          "answer_success": 0.6960710327241131
+        }
+      ]
+    },
+    "clipped-seed-23": {
+      "expected_reward": 0.8886101487264823,
+      "answer_success": 0.643995081184883,
+      "per_pair": [
+        {
+          "pair": [
+            3,
+            9
+          ],
+          "expected_reward": 0.8172932724920534,
+          "answer_success": 0.5726970891920351
+        },
+        {
+          "pair": [
+            2,
+            3
+          ],
+          "expected_reward": 1.0063525423450825,
+          "answer_success": 0.7605812683744786
+        },
+        {
+          "pair": [
+            1,
+            8
+          ],
+          "expected_reward": 1.1031323865790528,
+          "answer_success": 0.8592381671805542
+        },
+        {
+          "pair": [
+            7,
+            8
+          ],
+          "expected_reward": 1.0013533401814654,
+          "answer_success": 0.7564364242879107
+        },
+        {
+          "pair": [
+            5,
+            7
+          ],
+          "expected_reward": 0.8589097312354614,
+          "answer_success": 0.6146540692710449
+        },
+        {
+          "pair": [
+            3,
+            7
+          ],
+          "expected_reward": 0.7890922450525719,
+          "answer_success": 0.5435888045532662
+        },
+        {
+          "pair": [
+            1,
+            7
+          ],
+          "expected_reward": 1.0813860237168396,
+          "answer_success": 0.8367898404168213
+        },
+        {
+          "pair": [
+            8,
+            9
+          ],
+          "expected_reward": 0.9717530179295273,
+          "answer_success": 0.7268361020359726
+        },
+        {
+          "pair": [
+            4,
+            9
+          ],
+          "expected_reward": 0.8353405342593321,
+          "answer_success": 0.5907443509593138
+        },
+        {
+          "pair": [
+            5,
+            6
+          ],
+          "expected_reward": 0.421488393473436,
+          "answer_success": 0.17838469557743225
+        }
+      ]
+    },
+    "unclipped-seed-23": {
+      "expected_reward": 0.7588822079046778,
+      "answer_success": 0.5629213121875338,
+      "per_pair": [
+        {
+          "pair": [
+            3,
+            9
+          ],
+          "expected_reward": 0.6127627189352058,
+          "answer_success": 0.415779917974665
+        },
+        {
+          "pair": [
+            2,
+            3
+          ],
+          "expected_reward": 0.7926481519503538,
+          "answer_success": 0.5859702084822599
+        },
+        {
+          "pair": [
+            1,
+            8
+          ],
+          "expected_reward": 0.7799137441424945,
+          "answer_success": 0.5911849943904498
+        },
+        {
+          "pair": [
+            7,
+            8
+          ],
+          "expected_reward": 0.7747858212384732,
+          "answer_success": 0.5778030202779324
+        },
+        {
+          "pair": [
+            5,
+            7
+          ],
+          "expected_reward": 0.7006435927453674,
+          "answer_success": 0.5090701815190948
+        },
+        {
+          "pair": [
+            3,
+            7
+          ],
+          "expected_reward": 0.8049405911387417,
+          "answer_success": 0.6029237904967282
+        },
+        {
+          "pair": [
+            1,
+            7
+          ],
+          "expected_reward": 0.7404466636694331,
+          "answer_success": 0.5461216934240718
+        },
+        {
+          "pair": [
+            8,
+            9
+          ],
+          "expected_reward": 0.8408910426079323,
+          "answer_success": 0.6413443478523781
+        },
+        {
+          "pair": [
+            4,
+            9
+          ],
+          "expected_reward": 0.6599267356941857,
+          "answer_success": 0.4629439347336449
+        },
+        {
+          "pair": [
+            5,
+            6
+          ],
+          "expected_reward": 0.8818630169245907,
+          "answer_success": 0.6960710327241131
+        }
+      ]
+    },
+    "clipped-seed-37": {
+      "expected_reward": 0.8732139951747323,
+      "answer_success": 0.6315612084430124,
+      "per_pair": [
+        {
+          "pair": [
+            3,
+            9
+          ],
+          "expected_reward": 0.7772233903856738,
+          "answer_success": 0.5354948759527667
+        },
+        {
+          "pair": [
+            2,
+            3
+          ],
+          "expected_reward": 0.911348928867103,
+          "answer_success": 0.6678382802588952
+        },
+        {
+          "pair": [
+            1,
+            8
+          ],
+          "expected_reward": 1.0785071660053425,
+          "answer_success": 0.8378388989937001
+        },
+        {
+          "pair": [
+            7,
+            8
+          ],
+          "expected_reward": 0.9030596340010508,
+          "answer_success": 0.6608455801318034
+        },
+        {
+          "pair": [
+            5,
+            7
+          ],
+          "expected_reward": 0.8374013715858426,
+          "answer_success": 0.5967331045742001
+        },
+        {
+          "pair": [
+            3,
+            7
+          ],
+          "expected_reward": 0.8702741764924196,
+          "answer_success": 0.6271704785964158
+        },
+        {
+          "pair": [
+            1,
+            7
+          ],
+          "expected_reward": 1.0565725205944738,
+          "answer_success": 0.8153587369726858
+        },
+        {
+          "pair": [
+            8,
+            9
+          ],
+          "expected_reward": 0.951791320794374,
+          "answer_success": 0.7095772669251266
+        },
+        {
+          "pair": [
+            4,
+            9
+          ],
+          "expected_reward": 0.82734996970245,
+          "answer_success": 0.5856214552695429
+        },
+        {
+          "pair": [
+            5,
+            6
+          ],
+          "expected_reward": 0.5186114733185939,
+          "answer_success": 0.27913340675498766
+        }
+      ]
+    },
+    "unclipped-seed-37": {
+      "expected_reward": 0.7588822079046778,
+      "answer_success": 0.5629213121875338,
+      "per_pair": [
+        {
+          "pair": [
+            3,
+            9
+          ],
+          "expected_reward": 0.6127627189352058,
+          "answer_success": 0.415779917974665
+        },
+        {
+          "pair": [
+            2,
+            3
+          ],
+          "expected_reward": 0.7926481519503538,
+          "answer_success": 0.5859702084822599
+        },
+        {
+          "pair": [
+            1,
+            8
+          ],
+          "expected_reward": 0.7799137441424945,
+          "answer_success": 0.5911849943904498
+        },
+        {
+          "pair": [
+            7,
+            8
+          ],
+          "expected_reward": 0.7747858212384732,
+          "answer_success": 0.5778030202779324
+        },
+        {
+          "pair": [
+            5,
+            7
+          ],
+          "expected_reward": 0.7006435927453674,
+          "answer_success": 0.5090701815190948
+        },
+        {
+          "pair": [
+            3,
+            7
+          ],
+          "expected_reward": 0.8049405911387417,
+          "answer_success": 0.6029237904967282
+        },
+        {
+          "pair": [
+            1,
+            7
+          ],
+          "expected_reward": 0.7404466636694331,
+          "answer_success": 0.5461216934240718
+        },
+        {
+          "pair": [
+            8,
+            9
+          ],
+          "expected_reward": 0.8408910426079323,
+          "answer_success": 0.6413443478523781
+        },
+        {
+          "pair": [
+            4,
+            9
+          ],
+          "expected_reward": 0.6599267356941857,
+          "answer_success": 0.4629439347336449
+        },
+        {
+          "pair": [
+            5,
+            6
+          ],
+          "expected_reward": 0.8818630169245907,
+          "answer_success": 0.6960710327241131
+        }
+      ]
+    },
+    "clipped-seed-51": {
+      "expected_reward": 0.8820925700047828,
+      "answer_success": 0.637850834665618,
+      "per_pair": [
+        {
+          "pair": [
+            3,
+            9
+          ],
+          "expected_reward": 0.7964257298839305,
+          "answer_success": 0.5518295465839121
+        },
+        {
+          "pair": [
+            2,
+            3
+          ],
+          "expected_reward": 0.9400299034624888,
+          "answer_success": 0.6945264629631831
+        },
+        {
+          "pair": [
+            1,
+            8
+          ],
+          "expected_reward": 1.0541249820403273,
+          "answer_success": 0.8110212841443235
+        },
+        {
+          "pair": [
+            7,
+            8
+          ],
+          "expected_reward": 0.9455280745924987,
+          "answer_success": 0.7009318912924803
+        },
+        {
+          "pair": [
+            5,
+            7
+          ],
+          "expected_reward": 0.8261115428820558,
+          "answer_success": 0.5826008942738481
+        },
+        {
+          "pair": [
+            3,
+            7
+          ],
+          "expected_reward": 0.8954572286433647,
+          "answer_success": 0.6505403127498101
+        },
+        {
+          "pair": [
+            1,
+            7
+          ],
+          "expected_reward": 1.0733713535496994,
+          "answer_success": 0.8294771341512007
+        },
+        {
+          "pair": [
+            8,
+            9
+          ],
+          "expected_reward": 0.9545448214987751,
+          "answer_success": 0.7099486381987568
+        },
+        {
+          "pair": [
+            4,
+            9
+          ],
+          "expected_reward": 0.8896164150137404,
+          "answer_success": 0.6450202317137221
+        },
+        {
+          "pair": [
+            5,
+            6
+          ],
+          "expected_reward": 0.44571564848094664,
+          "answer_success": 0.2026119505849429
+        }
+      ]
+    },
+    "unclipped-seed-51": {
+      "expected_reward": 0.7588822079046778,
+      "answer_success": 0.5629213121875338,
+      "per_pair": [
+        {
+          "pair": [
+            3,
+            9
+          ],
+          "expected_reward": 0.6127627189352058,
+          "answer_success": 0.415779917974665
+        },
+        {
+          "pair": [
+            2,
+            3
+          ],
+          "expected_reward": 0.7926481519503538,
+          "answer_success": 0.5859702084822599
+        },
+        {
+          "pair": [
+            1,
+            8
+          ],
+          "expected_reward": 0.7799137441424945,
+          "answer_success": 0.5911849943904498
+        },
+        {
+          "pair": [
+            7,
+            8
+          ],
+          "expected_reward": 0.7747858212384732,
+          "answer_success": 0.5778030202779324
+        },
+        {
+          "pair": [
+            5,
+            7
+          ],
+          "expected_reward": 0.7006435927453674,
+          "answer_success": 0.5090701815190948
+        },
+        {
+          "pair": [
+            3,
+            7
+          ],
+          "expected_reward": 0.8049405911387417,
+          "answer_success": 0.6029237904967282
+        },
+        {
+          "pair": [
+            1,
+            7
+          ],
+          "expected_reward": 0.7404466636694331,
+          "answer_success": 0.5461216934240718
+        },
+        {
+          "pair": [
+            8,
+            9
+          ],
+          "expected_reward": 0.8408910426079323,
+          "answer_success": 0.6413443478523781
+        },
+        {
+          "pair": [
+            4,
+            9
+          ],
+          "expected_reward": 0.6599267356941857,
+          "answer_success": 0.4629439347336449
+        },
+        {
+          "pair": [
+            5,
+            6
+          ],
+          "expected_reward": 0.8818630169245907,
+          "answer_success": 0.6960710327241131
+        }
+      ]
+    },
+    "clipped-seed-71": {
+      "expected_reward": 0.8909284792030888,
+      "answer_success": 0.6456253088201123,
+      "per_pair": [
+        {
+          "pair": [
+            3,
+            9
+          ],
+          "expected_reward": 0.7695110010667832,
+          "answer_success": 0.5242920088335068
+        },
+        {
+          "pair": [
+            2,
+            3
+          ],
+          "expected_reward": 0.9642302250200242,
+          "answer_success": 0.7182068234020204
+        },
+        {
+          "pair": [
+            1,
+            8
+          ],
+          "expected_reward": 1.0617556076788786,
+          "answer_success": 0.8171594243788604
+        },
+        {
+          "pair": [
+            7,
+            8
+          ],
+          "expected_reward": 0.9757904014803434,
+          "answer_success": 0.7300191275097394
+        },
+        {
+          "pair": [
+            5,
+            7
+          ],
+          "expected_reward": 0.7991835703336349,
+          "answer_success": 0.5542666544400802
+        },
+        {
+          "pair": [
+            3,
+            7
+          ],
+          "expected_reward": 0.9672059216418297,
+          "answer_success": 0.7211825200238259
+        },
+        {
+          "pair": [
+            1,
+            7
+          ],
+          "expected_reward": 1.0732109732323076,
+          "answer_success": 0.8279919809990314
+        },
+        {
+          "pair": [
+            8,
+            9
+          ],
+          "expected_reward": 1.0068026520349498,
+          "answer_success": 0.761299211535644
+        },
+        {
+          "pair": [
+            4,
+            9
+          ],
+          "expected_reward": 0.8163150426263087,
+          "answer_success": 0.570811602127003
+        },
+        {
+          "pair": [
+            5,
+            6
+          ],
+          "expected_reward": 0.4752793969158287,
+          "answer_success": 0.2310237349514122
+        }
+      ]
+    },
+    "unclipped-seed-71": {
+      "expected_reward": 0.7588822079046778,
+      "answer_success": 0.5629213121875338,
+      "per_pair": [
+        {
+          "pair": [
+            3,
+            9
+          ],
+          "expected_reward": 0.6127627189352058,
+          "answer_success": 0.415779917974665
+        },
+        {
+          "pair": [
+            2,
+            3
+          ],
+          "expected_reward": 0.7926481519503538,
+          "answer_success": 0.5859702084822599
+        },
+        {
+          "pair": [
+            1,
+            8
+          ],
+          "expected_reward": 0.7799137441424945,
+          "answer_success": 0.5911849943904498
+        },
+        {
+          "pair": [
+            7,
+            8
+          ],
+          "expected_reward": 0.7747858212384732,
+          "answer_success": 0.5778030202779324
+        },
+        {
+          "pair": [
+            5,
+            7
+          ],
+          "expected_reward": 0.7006435927453674,
+          "answer_success": 0.5090701815190948
+        },
+        {
+          "pair": [
+            3,
+            7
+          ],
+          "expected_reward": 0.8049405911387417,
+          "answer_success": 0.6029237904967282
+        },
+        {
+          "pair": [
+            1,
+            7
+          ],
+          "expected_reward": 0.7404466636694331,
+          "answer_success": 0.5461216934240718
+        },
+        {
+          "pair": [
+            8,
+            9
+          ],
+          "expected_reward": 0.8408910426079323,
+          "answer_success": 0.6413443478523781
+        },
+        {
+          "pair": [
+            4,
+            9
+          ],
+          "expected_reward": 0.6599267356941857,
+          "answer_success": 0.4629439347336449
+        },
+        {
+          "pair": [
+            5,
+            6
+          ],
+          "expected_reward": 0.8818630169245907,
+          "answer_success": 0.6960710327241131
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 16.771190699990257,
+  "peak_cuda_allocated_bytes": 1535064064,
+  "peak_cuda_reserved_bytes": 1564475392,
+  "peak_rss_bytes": 2163113984
+}

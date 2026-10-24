@@ -21,6 +21,7 @@ STUDY_GROUPS_PER_UPDATE = 2
 STUDY_UPDATES = 256
 STUDY_ACTIONS_PER_GROUP = 4
 STUDY_BF16_ULP_FLOOR = 1e-42
+MAX_GRAD_NORM = 0.5
 STUDY_SOURCE_FILES = ("examples/local_async/train.py", "scripts/verify_async_rl.py")
 
 
@@ -61,6 +62,7 @@ def study_config():
         "learning_rate": 0.005,
         "baseline": 0.5,
         "ratio_clip": [0.8, 1.2],
+        "max_grad_norm": MAX_GRAD_NORM,
         "max_age": 1,
         "sampling_precision": "bfloat16 installed model rows and bfloat16 features; float32 logits",
         "master_precision": "float32 head; differentiable bfloat16 training forward",
@@ -298,7 +300,7 @@ def _runtime_identity():
     }
 
 
-def apply_policy_update(batch, head, optimizer, model, ids, training_dtype=None):
+def apply_policy_update(batch, head, optimizer, model, ids, training_dtype=None, max_grad_norm=MAX_GRAD_NORM):
     terms = []
     for group in batch:
         for i, action in enumerate(group.actions):
@@ -320,6 +322,8 @@ def apply_policy_update(batch, head, optimizer, model, ids, training_dtype=None)
     if not torch.isfinite(head.grad).all():
         raise RuntimeError("Nonfinite policy gradient")
     grad_norm = float(head.grad.norm())
+    if max_grad_norm is not None:
+        torch.nn.utils.clip_grad_norm_(head, max_grad_norm, error_if_nonfinite=True)
     optimizer.step()
     if not torch.isfinite(head).all():
         raise RuntimeError("Nonfinite FP32 master head")

@@ -28,6 +28,7 @@ def source_functions(*names):
                 "STUDY_CHECKPOINTS",
                 "STUDY_UPDATES",
                 "STUDY_GROUPS_PER_UPDATE",
+                "MAX_GRAD_NORM",
                 "STUDY_ACTIONS_PER_GROUP",
             }
             for target in node.targets

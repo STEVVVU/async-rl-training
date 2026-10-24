@@ -1,0 +1,934 @@
+{
+  "schema": 1,
+  "training_sha256": "28c51bbf2535dd7e0f3cc5fcf6b3bc531a9e9e171a2aa0b13942fca77c8f399b",
+  "inputs": {
+    "manifest": "89a10b2ea9d996c83bff7040825b8cec711b8c559edb73261fb987273aeaed09",
+    "features": "ae42b7e86f65569732b83253df6839648c6798fa23b9505e1b2452ba5115bfe6",
+    "prompts": "1bd58e9f6c16fcc3f73b67fc6622504e9bd83f0e202cf37bd1b036b43336d5d7",
+    "preparation": "ed0147c0ced215e8db9c3f8b773cdd5efca72d11a799b22004b63b6b2dac17d6",
+    "initial_checkpoint": "c9268aadc48b8188a895e866354b96521af53a16e1817820efd1b0671469684e",
+    "initial_run_receipt": "1853777c2cf160bd53d331974808f49512e96fa6923a3df9a2bf68ead98a8d72",
+    "saved_initial_head": "00e7e3ce4841f8d8bdb57566f037c31ca13419ebf5c994bb94685c603162752f"
+  },
+  "input_paths": {
+    "manifest": ".evidence\\matched-study-final-20261022-104451\\manifest.json",
+    "features": ".evidence\\matched-study-final-20261022-104451\\features.safetensors",
+    "prompts": ".evidence\\matched-study-final-20261022-104451\\prompts.json",
+    "preparation": ".evidence\\matched-study-final-20261022-104451\\preparation.json",
+    "initial_checkpoint": "C:\\Users\\steve\\Projects\\async-rl-training\\.evidence\\matched-study-final-20261022-104451\\runs\\sync-seed-11\\step-32.safetensors",
+    "initial_run_receipt": "C:\\Users\\steve\\Projects\\async-rl-training\\.evidence\\matched-study-final-20261022-104451\\runs\\sync-seed-11\\run_receipt.json",
+    "saved_initial_head": "C:\\Users\\steve\\Projects\\async-rl-training\\.evidence\\cpu-head-quality-20261024-final\\initial-head.safetensors"
+  },
+  "config": {
+    "seeds": [
+      11,
+      23,
+      37,
+      51,
+      71
+    ],
+    "updates": 256,
+    "groups_per_update": 2,
+    "checkpoints": [
+      32,
+      128,
+      256
+    ],
+    "clip_arm": 0.5,
+    "baseline_arm": null,
+    "lr": 0.005,
+    "training": "CPU one-thread BF16 forward, FP32 master"
+  },
+  "source": {
+    "train.py": "990566f78f73e4e7901a3bb0caa855ca57fd676d0de1da70df7f67c26b0d3a81",
+    "driver.py": "6c5f52bf9ef8cc63fc1715c4d3309e79548045b8d2d920ce6caff00bebf23b21"
+  },
+  "selections": {
+    "clipped-seed-11": {
+      "expected_reward": 0.8869161489594933,
+      "answer_success": 0.6461099329579828,
+      "per_pair": [
+        {
+          "pair": [
+            6,
+            7
+          ],
+          "expected_reward": 0.8823085430103069,
+          "answer_success": 0.6416402759986645
+        },
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "expected_reward": 0.8504464270481736,
+          "answer_success": 0.605529511154619
+        },
+        {
+          "pair": [
+            1,
+            9
+          ],
+          "expected_reward": 0.8351444415158698,
+          "answer_success": 0.5984952709979483
+        },
+        {
+          "pair": [
+            0,
+            7
+          ],
+          "expected_reward": 1.0683516375341262,
+          "answer_success": 0.8240959755697097
+        },
+        {
+          "pair": [
+            4,
+            4
+          ],
+          "expected_reward": 1.0816638910070664,
+          "answer_success": 0.8389919542566544
+        },
+        {
+          "pair": [
+            2,
+            7
+          ],
+          "expected_reward": 1.0019965844713947,
+          "answer_success": 0.7613283174597522
+        },
+        {
+          "pair": [
+            1,
+            6
+          ],
+          "expected_reward": 0.9474198407846899,
+          "answer_success": 0.7100025005060644
+        },
+        {
+          "pair": [
+            4,
+            8
+          ],
+          "expected_reward": 0.8227363686312283,
+          "answer_success": 0.5820681016195859
+        },
+        {
+          "pair": [
+            2,
+            9
+          ],
+          "expected_reward": 0.4959937934630789,
+          "answer_success": 0.25532552645143647
+        },
+        {
+          "pair": [
+            3,
+            4
+          ],
+          "expected_reward": 0.883099962128999,
+          "answer_success": 0.6436218955653927
+        }
+      ],
+      "step": 32,
+      "checkpoint": "clipped-seed-11-step-32.safetensors",
+      "sha256": "6baa2461668c61c754576068ca222f5773ccf358d7b52891edf3d3a23697049f"
+    },
+    "unclipped-seed-11": {
+      "step": 0,
+      "expected_reward": 0.81575822002996,
+      "answer_success": 0.6125097236763337,
+      "per_pair": [
+        {
+          "pair": [
+            6,
+            7
+          ],
+          "expected_reward": 0.7056575975377349,
+          "answer_success": 0.5036407968957214
+        },
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "expected_reward": 1.1148049101196333,
+          "answer_success": 0.891477556522946
+        },
+        {
+          "pair": [
+            1,
+            9
+          ],
+          "expected_reward": 0.7609089033701502,
+          "answer_success": 0.5751169191696726
+        },
+        {
+          "pair": [
+            0,
+            7
+          ],
+          "expected_reward": 1.0715412077427509,
+          "answer_success": 0.853021907520354
+        },
+        {
+          "pair": [
+            4,
+            4
+          ],
+          "expected_reward": 0.7713195562986337,
+          "answer_success": 0.5603457719711267
+        },
+        {
+          "pair": [
+            2,
+            7
+          ],
+          "expected_reward": 0.778800188918912,
+          "answer_success": 0.5792534941633578
+        },
+        {
+          "pair": [
+            1,
+            6
+          ],
+          "expected_reward": 0.7979712852071745,
+          "answer_success": 0.6092425354551299
+        },
+        {
+          "pair": [
+            4,
+            8
+          ],
+          "expected_reward": 0.5563536999512811,
+          "answer_success": 0.3543368993092676
+        },
+        {
+          "pair": [
+            2,
+            9
+          ],
+          "expected_reward": 0.8030336210237009,
+          "answer_success": 0.6010168203816874
+        },
+        {
+          "pair": [
+            3,
+            4
+          ],
+          "expected_reward": 0.7971912301296271,
+          "answer_success": 0.5976445353740729
+        }
+      ],
+      "checkpoint": null
+    },
+    "clipped-seed-23": {
+      "expected_reward": 0.8737830068123671,
+      "answer_success": 0.6282643790495727,
+      "per_pair": [
+        {
+          "pair": [
+            6,
+            7
+          ],
+          "expected_reward": 0.86828621132282,
+          "answer_success": 0.6227827708235143
+        },
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "expected_reward": 0.7331296227060722,
+          "answer_success": 0.4855567387424872
+        },
+        {
+          "pair": [
+            1,
+            9
+          ],
+          "expected_reward": 0.8427543110143503,
+          "answer_success": 0.5992436624061426
+        },
+        {
+          "pair": [
+            0,
+            7
+          ],
+          "expected_reward": 1.0896765148322423,
+          "answer_success": 0.8425983196179707
+        },
+        {
+          "pair": [
+            4,
+            4
+          ],
+          "expected_reward": 1.0576536983911629,
+          "answer_success": 0.8111695975725287
+        },
+        {
+          "pair": [
+            2,
+            7
+          ],
+          "expected_reward": 1.0652387730353705,
+          "answer_success": 0.8200197808020941
+        },
+        {
+          "pair": [
+            1,
+            6
+          ],
+          "expected_reward": 0.9985705871241456,
+          "answer_success": 0.7546763677256471
+        },
+        {
+          "pair": [
+            4,
+            8
+          ],
+          "expected_reward": 0.7391035914725826,
+          "answer_success": 0.4936001509732769
+        },
+        {
+          "pair": [
+            2,
+            9
+          ],
+          "expected_reward": 0.41187779416947645,
+          "answer_success": 0.16637435367017073
+        },
+        {
+          "pair": [
+            3,
+            4
+          ],
+          "expected_reward": 0.9315389640554483,
+          "answer_success": 0.6866220481618936
+        }
+      ],
+      "step": 32,
+      "checkpoint": "clipped-seed-23-step-32.safetensors",
+      "sha256": "229dd87d5ad79687792db49372bfb5303cddd9b33deb2f6fd0dea7dfde27907b"
+    },
+    "unclipped-seed-23": {
+      "step": 0,
+      "expected_reward": 0.81575822002996,
+      "answer_success": 0.6125097236763337,
+      "per_pair": [
+        {
+          "pair": [
+            6,
+            7
+          ],
+          "expected_reward": 0.7056575975377349,
+          "answer_success": 0.5036407968957214
+        },
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "expected_reward": 1.1148049101196333,
+          "answer_success": 0.891477556522946
+        },
+        {
+          "pair": [
+            1,
+            9
+          ],
+          "expected_reward": 0.7609089033701502,
+          "answer_success": 0.5751169191696726
+        },
+        {
+          "pair": [
+            0,
+            7
+          ],
+          "expected_reward": 1.0715412077427509,
+          "answer_success": 0.853021907520354
+        },
+        {
+          "pair": [
+            4,
+            4
+          ],
+          "expected_reward": 0.7713195562986337,
+          "answer_success": 0.5603457719711267
+        },
+        {
+          "pair": [
+            2,
+            7
+          ],
+          "expected_reward": 0.778800188918912,
+          "answer_success": 0.5792534941633578
+        },
+        {
+          "pair": [
+            1,
+            6
+          ],
+          "expected_reward": 0.7979712852071745,
+          "answer_success": 0.6092425354551299
+        },
+        {
+          "pair": [
+            4,
+            8
+          ],
+          "expected_reward": 0.5563536999512811,
+          "answer_success": 0.3543368993092676
+        },
+        {
+          "pair": [
+            2,
+            9
+          ],
+          "expected_reward": 0.8030336210237009,
+          "answer_success": 0.6010168203816874
+        },
+        {
+          "pair": [
+            3,
+            4
+          ],
+          "expected_reward": 0.7971912301296271,
+          "answer_success": 0.5976445353740729
+        }
+      ],
+      "checkpoint": null
+    },
+    "clipped-seed-37": {
+      "expected_reward": 0.888212470692878,
+      "answer_success": 0.6450808703725388,
+      "per_pair": [
+        {
+          "pair": [
+            6,
+            7
+          ],
+          "expected_reward": 0.8632641772391687,
+          "answer_success": 0.620160479343165
+        },
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "expected_reward": 0.8531555550984191,
+          "answer_success": 0.6068948226860809
+        },
+        {
+          "pair": [
+            1,
+            9
+          ],
+          "expected_reward": 0.9079351120874748,
+          "answer_success": 0.6678448164150581
+        },
+        {
+          "pair": [
+            0,
+            7
+          ],
+          "expected_reward": 1.0747882829487168,
+          "answer_success": 0.8292848424494111
+        },
+        {
+          "pair": [
+            4,
+            4
+          ],
+          "expected_reward": 1.0393185797282785,
+          "answer_success": 0.79472239642826
+        },
+        {
+          "pair": [
+            2,
+            7
+          ],
+          "expected_reward": 1.0459289316954494,
+          "answer_success": 0.8032569949450374
+        },
+        {
+          "pair": [
+            1,
+            6
+          ],
+          "expected_reward": 0.9736363465217617,
+          "answer_success": 0.7329680795101192
+        },
+        {
+          "pair": [
+            4,
+            8
+          ],
+          "expected_reward": 0.7109948227960763,
+          "answer_success": 0.4678911249000726
+        },
+        {
+          "pair": [
+            2,
+            9
+          ],
+          "expected_reward": 0.5018177387122964,
+          "answer_success": 0.2587140408162927
+        },
+        {
+          "pair": [
+            3,
+            4
+          ],
+          "expected_reward": 0.9112851601011379,
+          "answer_success": 0.6690711062318905
+        }
+      ],
+      "step": 32,
+      "checkpoint": "clipped-seed-37-step-32.safetensors",
+      "sha256": "939a68a86123b47546693016a1248bf9f6cf83c77e1eeaff9b5456d095a2c78e"
+    },
+    "unclipped-seed-37": {
+      "step": 0,
+      "expected_reward": 0.81575822002996,
+      "answer_success": 0.6125097236763337,
+      "per_pair": [
+        {
+          "pair": [
+            6,
+            7
+          ],
+          "expected_reward": 0.7056575975377349,
+          "answer_success": 0.5036407968957214
+        },
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "expected_reward": 1.1148049101196333,
+          "answer_success": 0.891477556522946
+        },
+        {
+          "pair": [
+            1,
+            9
+          ],
+          "expected_reward": 0.7609089033701502,
+          "answer_success": 0.5751169191696726
+        },
+        {
+          "pair": [
+            0,
+            7
+          ],
+          "expected_reward": 1.0715412077427509,
+          "answer_success": 0.853021907520354
+        },
+        {
+          "pair": [
+            4,
+            4
+          ],
+          "expected_reward": 0.7713195562986337,
+          "answer_success": 0.5603457719711267
+        },
+        {
+          "pair": [
+            2,
+            7
+          ],
+          "expected_reward": 0.778800188918912,
+          "answer_success": 0.5792534941633578
+        },
+        {
+          "pair": [
+            1,
+            6
+          ],
+          "expected_reward": 0.7979712852071745,
+          "answer_success": 0.6092425354551299
+        },
+        {
+          "pair": [
+            4,
+            8
+          ],
+          "expected_reward": 0.5563536999512811,
+          "answer_success": 0.3543368993092676
+        },
+        {
+          "pair": [
+            2,
+            9
+          ],
+          "expected_reward": 0.8030336210237009,
+          "answer_success": 0.6010168203816874
+        },
+        {
+          "pair": [
+            3,
+            4
+          ],
+          "expected_reward": 0.7971912301296271,
+          "answer_success": 0.5976445353740729
+        }
+      ],
+      "checkpoint": null
+    },
+    "clipped-seed-51": {
+      "expected_reward": 0.8786870053698792,
+      "answer_success": 0.6336378401806128,
+      "per_pair": [
+        {
+          "pair": [
+            6,
+            7
+          ],
+          "expected_reward": 0.9215302855953598,
+          "answer_success": 0.6763112933620834
+        },
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "expected_reward": 0.7480615619527278,
+          "answer_success": 0.5008082929955897
+        },
+        {
+          "pair": [
+            1,
+            9
+          ],
+          "expected_reward": 0.9404858732959889,
+          "answer_success": 0.6978139365455769
+        },
+        {
+          "pair": [
+            0,
+            7
+          ],
+          "expected_reward": 1.0720969049708153,
+          "answer_success": 0.8252048252598548
+        },
+        {
+          "pair": [
+            4,
+            4
+          ],
+          "expected_reward": 1.0486053319592754,
+          "answer_success": 0.8025819303412716
+        },
+        {
+          "pair": [
+            2,
+            7
+          ],
+          "expected_reward": 1.0096587708243923,
+          "answer_success": 0.7650625875243738
+        },
+        {
+          "pair": [
+            1,
+            6
+          ],
+          "expected_reward": 0.9787057174236838,
+          "answer_success": 0.7356020195276801
+        },
+        {
+          "pair": [
+            4,
+            8
+          ],
+          "expected_reward": 0.7084637784119125,
+          "answer_success": 0.46324478617863624
+        },
+        {
+          "pair": [
+            2,
+            9
+          ],
+          "expected_reward": 0.44958101349315266,
+          "answer_success": 0.20466409759959794
+        },
+        {
+          "pair": [
+            3,
+            4
+          ],
+          "expected_reward": 0.9096808157714816,
+          "answer_success": 0.6650846324714633
+        }
+      ],
+      "step": 32,
+      "checkpoint": "clipped-seed-51-step-32.safetensors",
+      "sha256": "5919d6d9d1d4cfe2109acd9b03d3957e63eafa741d00d45f278109afb8709e34"
+    },
+    "unclipped-seed-51": {
+      "step": 0,
+      "expected_reward": 0.81575822002996,
+      "answer_success": 0.6125097236763337,
+      "per_pair": [
+        {
+          "pair": [
+            6,
+            7
+          ],
+          "expected_reward": 0.7056575975377349,
+          "answer_success": 0.5036407968957214
+        },
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "expected_reward": 1.1148049101196333,
+          "answer_success": 0.891477556522946
+        },
+        {
+          "pair": [
+            1,
+            9
+          ],
+          "expected_reward": 0.7609089033701502,
+          "answer_success": 0.5751169191696726
+        },
+        {
+          "pair": [
+            0,
+            7
+          ],
+          "expected_reward": 1.0715412077427509,
+          "answer_success": 0.853021907520354
+        },
+        {
+          "pair": [
+            4,
+            4
+          ],
+          "expected_reward": 0.7713195562986337,
+          "answer_success": 0.5603457719711267
+        },
+        {
+          "pair": [
+            2,
+            7
+          ],
+          "expected_reward": 0.778800188918912,
+          "answer_success": 0.5792534941633578
+        },
+        {
+          "pair": [
+            1,
+            6
+          ],
+          "expected_reward": 0.7979712852071745,
+          "answer_success": 0.6092425354551299
+        },
+        {
+          "pair": [
+            4,
+            8
+          ],
+          "expected_reward": 0.5563536999512811,
+          "answer_success": 0.3543368993092676
+        },
+        {
+          "pair": [
+            2,
+            9
+          ],
+          "expected_reward": 0.8030336210237009,
+          "answer_success": 0.6010168203816874
+        },
+        {
+          "pair": [
+            3,
+            4
+          ],
+          "expected_reward": 0.7971912301296271,
+          "answer_success": 0.5976445353740729
+        }
+      ],
+      "checkpoint": null
+    },
+    "clipped-seed-71": {
+      "expected_reward": 0.89104436956603,
+      "answer_success": 0.6450166555519765,
+      "per_pair": [
+        {
+          "pair": [
+            6,
+            7
+          ],
+          "expected_reward": 0.8478502897515253,
+          "answer_success": 0.6015895573391871
+        },
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "expected_reward": 0.7346684708163607,
+          "answer_success": 0.4869498683974611
+        },
+        {
+          "pair": [
+            1,
+            9
+          ],
+          "expected_reward": 1.0107707182358416,
+          "answer_success": 0.7665150562714252
+        },
+        {
+          "pair": [
+            0,
+            7
+          ],
+          "expected_reward": 1.1064822970402484,
+          "answer_success": 0.8589094130766635
+        },
+        {
+          "pair": [
+            4,
+            4
+          ],
+          "expected_reward": 1.0443354323334515,
+          "answer_success": 0.7974433526224912
+        },
+        {
+          "pair": [
+            2,
+            7
+          ],
+          "expected_reward": 1.0204406541375322,
+          "answer_success": 0.7746693801669282
+        },
+        {
+          "pair": [
+            1,
+            6
+          ],
+          "expected_reward": 1.0319434644994878,
+          "answer_success": 0.7876878025350713
+        },
+        {
+          "pair": [
+            4,
+            8
+          ],
+          "expected_reward": 0.6799095184726137,
+          "answer_success": 0.4338861168546099
+        },
+        {
+          "pair": [
+            2,
+            9
+          ],
+          "expected_reward": 0.463118363206858,
+          "answer_success": 0.21709496158885416
+        },
+        {
+          "pair": [
+            3,
+            4
+          ],
+          "expected_reward": 0.9709244871663805,
+          "answer_success": 0.7254210466670747
+        }
+      ],
+      "step": 32,
+      "checkpoint": "clipped-seed-71-step-32.safetensors",
+      "sha256": "da78c5c5d6f8bbf78b8c4a11c6202d4db99951c4fd03b8267c254460f6564e63"
+    },
+    "unclipped-seed-71": {
+      "step": 0,
+      "expected_reward": 0.81575822002996,
+      "answer_success": 0.6125097236763337,
+      "per_pair": [
+        {
+          "pair": [
+            6,
+            7
+          ],
+          "expected_reward": 0.7056575975377349,
+          "answer_success": 0.5036407968957214
+        },
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "expected_reward": 1.1148049101196333,
+          "answer_success": 0.891477556522946
+        },
+        {
+          "pair": [
+            1,
+            9
+          ],
+          "expected_reward": 0.7609089033701502,
+          "answer_success": 0.5751169191696726
+        },
+        {
+          "pair": [
+            0,
+            7
+          ],
+          "expected_reward": 1.0715412077427509,
+          "answer_success": 0.853021907520354
+        },
+        {
+          "pair": [
+            4,
+            4
+          ],
+          "expected_reward": 0.7713195562986337,
+          "answer_success": 0.5603457719711267
+        },
+        {
+          "pair": [
+            2,
+            7
+          ],
+          "expected_reward": 0.778800188918912,
+          "answer_success": 0.5792534941633578
+        },
+        {
+          "pair": [
+            1,
+            6
+          ],
+          "expected_reward": 0.7979712852071745,
+          "answer_success": 0.6092425354551299
+        },
+        {
+          "pair": [
+            4,
+            8
+          ],
+          "expected_reward": 0.5563536999512811,
+          "answer_success": 0.3543368993092676
+        },
+        {
+          "pair": [
+            2,
+            9
+          ],
+          "expected_reward": 0.8030336210237009,
+          "answer_success": 0.6010168203816874
+        },
+        {
+          "pair": [
+            3,
+            4
+          ],
+          "expected_reward": 0.7971912301296271,
+          "answer_success": 0.5976445353740729
+        }
+      ],
+      "checkpoint": null
+    }
+  },
+  "test_accessed": false
+}

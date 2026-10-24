@@ -1,5 +1,7 @@
 # Matched head-only study
 
+The original frozen study below is historical negative evidence. The separate [24 October quality repair](../../../../docs/head-quality-20261024.md) uses the actual updater with norm clipping, CPU cached-feature training and a frozen validation selection before GPU evaluation. Its ten-run/30-checkpoint inventory, native tensor reloads, unchanged BF16 logit gate, source/input identities and explicit initial baseline passed. Mean expected correct-answer probability rose from 56.29% to 64.33% over ten reused held-out pairs across five seeds. This is not async/distributed parity or a general accuracy claim. Use the new train/test commands in the parent skill; retain the old negative study unchanged.
+
 The opt-in adapter extends the local reference without changing the default four-update `drive` contract. Its frozen manifest contains 35/10/10 canonical train, validation, and test pairs, shuffled once with seed 421. Five paired seeds use the same 512-group arithmetic schedule per seed. Both arms run 256 updates with two groups per update, LR 0.005, baseline 0.5, ratio clipping 0.8 to 1.2, and maximum policy age one. Async continuations keep their group RNG and action budget across a version; generated, accepted, stale, tail, token, and per-group version counts are retained.
 
 Run the phases explicitly from the repository root with the existing interpreter. Each directory must be new for preparation.

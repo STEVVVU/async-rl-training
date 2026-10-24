@@ -34,16 +34,60 @@ jobs:
         run: >-
           uv run --isolated --no-project --with ruff==0.11.9 ruff check
           skyrl/train/staleness.py skyrl/train/trainer.py skyrl/train/fully_async_trainer.py
-          skyrl/train/config/config.py tests/local_async tests/train/test_fully_async_trainer.py
-          scripts/verify_async_rl.py examples/local_async
+          skyrl/train/config/config.py tests/local_async tests/local_async_torch tests/train/test_fully_async_trainer.py
+          scripts/verify_async_rl.py scripts/verify_head_quality.py examples/local_async
       - name: Check formatting
         run: >-
           uv run --isolated --no-project --with black==24.10.0 black --check
           skyrl/train/staleness.py skyrl/train/trainer.py skyrl/train/fully_async_trainer.py
-          skyrl/train/config/config.py tests/local_async tests/train/test_fully_async_trainer.py
-          scripts/verify_async_rl.py examples/local_async
-      - name: Compile reference and driver without importing model dependencies
-        run: uv run --isolated --no-project python -m compileall -q scripts/verify_async_rl.py examples/local_async
+          skyrl/train/config/config.py tests/local_async tests/local_async_torch tests/train/test_fully_async_trainer.py
+          scripts/verify_async_rl.py scripts/verify_head_quality.py examples/local_async
+      - name: Compile reference and drivers without importing model dependencies
+        run: uv run --isolated --no-project python -m compileall -q scripts/verify_async_rl.py scripts/verify_head_quality.py examples/local_async
+      - name: Verify retained head-quality evidence without loading a model
+        run: |
+          uv run --isolated --no-project python - <<'PY'
+          import hashlib
+          import json
+          import math
+          from pathlib import Path
+
+          root = Path('docs/evidence/head-quality-20261024')
+          hashes = json.loads((root / 'sha256.json').read_text())
+          for name, digest in hashes.items():
+              assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest, name
+          raw = json.loads((root / 'raw-sha256.json').read_text())
+          for name, item in raw.items():
+              data = (root / name).read_bytes()
+              if item['line_endings'] == 'crlf':
+                  data = data.replace(b'\n', b'\r\n')
+              assert hashlib.sha256(data).hexdigest() == item['sha256'], name
+          training = json.loads((root / 'training.json').read_text())
+          selection = json.loads((root / 'selection.json').read_text())
+          test = json.loads((root / 'test.json').read_text())
+          assert selection['training_sha256'] == raw['training.json']['sha256']
+          assert test['selection_sha256'] == raw['selection.json']['sha256']
+          for name, path in [('train.py', 'examples/local_async/train.py'), ('driver.py', 'scripts/verify_head_quality.py')]:
+              assert hashlib.sha256(Path(path).read_bytes()).hexdigest() == selection['source'][name]
+          expected = {f'{arm}-seed-{seed}' for arm in ('clipped', 'unclipped') for seed in (11, 23, 37, 51, 71)}
+          assert set(training['runs']) == set(selection['selections']) == set(test['results']) == expected
+          checkpoints = {}
+          for name, run in training['runs'].items():
+              assert [x['step'] for x in run['updates'] if 'loss' in x] == list(range(1, 257))
+              candidates = [{'step': 0, **run['initial_validation'], 'checkpoint': None}]
+              measured = [x for x in run['updates'] if 'validation' in x]
+              assert [x['step'] for x in measured] == [32, 128, 256]
+              for item in measured:
+                  checkpoints[item['checkpoint']] = item['sha256']
+                  candidates.append({**item['validation'], 'step': item['step'], 'checkpoint': item['checkpoint'], 'sha256': item['sha256']})
+              assert max(candidates, key=lambda x: (x['expected_reward'], -x['step'])) == selection['selections'][name]
+          assert checkpoints == json.loads((root / 'checkpoint-hashes.json').read_text())
+          assert len(checkpoints) == 30
+          assert test['cached_logit_oracle']['max_ulp'] <= 1
+          assert all(value['max_ulp'] <= 1 for value in test['selection_logit_checks'].values())
+          assert all(math.isfinite(value['expected_reward']) and 0 <= value['answer_success'] <= 1 for value in test['results'].values())
+          print('Retained CPU/GPU receipts verified; this CI job did not run model training or CUDA.')
+          PY
       - name: State verification limits
         run: |
           echo 'CPU unit and static checks only. No pretrained model or native distributed backend runs in this job.' >> "$GITHUB_STEP_SUMMARY"

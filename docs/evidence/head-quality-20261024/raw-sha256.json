@@ -1,0 +1,14 @@
+{
+  "training.json": {
+    "sha256": "28c51bbf2535dd7e0f3cc5fcf6b3bc531a9e9e171a2aa0b13942fca77c8f399b",
+    "line_endings": "crlf"
+  },
+  "selection.json": {
+    "sha256": "57761fb394ceef4ffaa1eeebf0418952c308d6bc325f6a20642f99222e559beb",
+    "line_endings": "crlf"
+  },
+  "test.json": {
+    "sha256": "7076c752b3ce64f508db86ffd9dd392d34ed86c6226fd17761383306938c992d",
+    "line_endings": "crlf"
+  }
+}
