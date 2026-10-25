@@ -16,9 +16,31 @@ The coursework source is [Asynchronous Agentic Reinforcement Learning](https://p
 
 ## Architecture and execution guide
 
+### Subsystem map
+
+Select a subsystem in the diagram to open its techniques, tradeoffs, and code references. The numbered links provide the same navigation. This map groups components; the execution diagrams show their runtime flow.
+
+```mermaid
+flowchart LR
+  system["Async RL training with<br/>strict policy-age<br/>fencing"]
+  system --> s1["1. native strict fence"]
+  click s1 href "https://github.com/STEVVVU/async-rl-training#subsystem-native-strict-fence" "Explore native strict fence" _top
+  system --> s2["2. local async reference"]
+  click s2 href "https://github.com/STEVVVU/async-rl-training#subsystem-local-async-reference" "Explore local async reference" _top
+  system --> s3["3. quality study selection"]
+  click s3 href "https://github.com/STEVVVU/async-rl-training#subsystem-quality-study-selection" "Explore quality study selection" _top
+```
+
+1. [native strict fence](#subsystem-native-strict-fence)
+2. [local async reference](#subsystem-local-async-reference)
+3. [quality study selection](#subsystem-quality-study-selection)
+
 This repository retains SkyRL and adds opt-in strict age checks to the fully asynchronous PPO trainer, plus a separate bounded local reference. The native trainer uses distributed rollout and training backends; the local reference reuses the fence with a small frozen Qwen model. It does not validate native distributed execution. A [rollout group](#rollout-group) carries a UID and scheduling stamp through the [policy age](#policy-age) check.
 
 The top-level flow separates producers from the training consumer. Eligible groups reach PPO; stale and duplicate groups do not.
+
+<details>
+<summary>Expand flow diagram 1</summary>
 
 ```mermaid
 flowchart LR
@@ -31,7 +53,12 @@ flowchart LR
   N7["New policy step and checkpoint"] --> N8["Rollout workers"]
 ```
 
+</details>
+
 The inner lifecycle shows capacity and checkpoint boundaries. Stale UIDs become terminal for the epoch; exhaustion filters a partial final mini-batch.
+
+<details>
+<summary>Expand flow diagram 2</summary>
 
 ```mermaid
 flowchart TD
@@ -56,6 +83,8 @@ flowchart TD
   N6 -->|"Producers finished and queue empty"| N15["Epoch exhausted"]
   N15 --> N16["Filter partial batch and save last completed step"]
 ```
+
+</details>
 
 | Subsystem | Responsibility and owned state | Source |
 | --- | --- | --- |
@@ -126,6 +155,348 @@ A partial mini-batch has fewer eligible groups than configured when generation e
 
 </details>
 
+## Implementation techniques
+
+This covers active native strict fencing and the bounded local cached-feature reference. Tradeoff rationale is inferred from current code.
+
+<details>
+<summary>Full technique index</summary>
+
+| Subsystem | Techniques | Sources |
+|---|---|---|
+| Native strict fence | [Age fence](#technique-scheduling-step-age-fence), [UID suppression](#technique-uid-terminal-deduplication), [capacity](#technique-bounded-rollout-capacity), [drain](#technique-finite-epoch-drain), [failure propagation](#technique-background-failure-propagation), [checkpoint resume](#technique-uid-checkpoint-resume) | [staleness.py](skyrl/train/staleness.py), [fully_async_trainer.py](skyrl/train/fully_async_trainer.py) |
+| Local reference | [Cached head training](#technique-cached-frozen-feature-head-training), [partial rollouts](#technique-async-partial-rollouts), [clipped update](#technique-clipped-importance-policy-gradient), [UID resume](#technique-terminal-uid-resume), [validation selection](#technique-frozen-validation-checkpoint-selection), [expected reward](#technique-teacher-forced-expectation-evaluation), [gradient clipping](#technique-gradient-norm-clipping), [logit parity](#technique-cached-logit-parity-gate) | [train.py](examples/local_async/train.py) |
+
+</details>
+
+<a id="subsystem-native-strict-fence"></a>
+
+### 1. native strict fence
+
+[Back to the subsystem map](#architecture-and-execution-guide).
+
+**Code.** [`skyrl/train/staleness.py`](skyrl/train/staleness.py), [`skyrl/train/fully_async_trainer.py`](skyrl/train/fully_async_trainer.py).
+
+**Techniques.** [Scheduling-step policy-age fencing](#technique-scheduling-step-age-fence), [Terminal UID duplicate suppression](#technique-uid-terminal-deduplication), [Condition-based rollout capacity accounting](#technique-bounded-rollout-capacity), [Producer-completion queue draining](#technique-finite-epoch-drain), [Background worker failure propagation](#technique-background-failure-propagation), [Consumed and filtered UID checkpoint ledgers](#technique-uid-checkpoint-resume).
+
+**Related concepts.** [terminal UID](#terminal-uid), [capacity accounting](#capacity-accounting).
+
+<a id="technique-scheduling-step-age-fence"></a>
+
+<details>
+<summary>Scheduling-step policy-age fencing</summary>
+
+**Mechanism.** Stamp each group at scheduling; admit only when current minus stamp is within max age.
+
+**Example.** illustrative inputs, not a measurement: With max age 1, a group stamped at version 4 reaches the consumer at version 5 and is kept; if it arrives at version 6, it is stale.
+
+**Why here.** Adds an individual age bound to the aggregate producer capacity rule.
+
+**Tradeoffs.** Group-level stamps are conservative; strict behavior is opt-in.
+
+**Code and ownership.** [skyrl/train/staleness.py#L26](skyrl/train/staleness.py#L26) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [native strict fence](#subsystem-native-strict-fence). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
+<a id="technique-uid-terminal-deduplication"></a>
+
+<details>
+<summary>Terminal UID duplicate suppression</summary>
+
+**Mechanism.** A UID is recorded on first decision; later queue deliveries return duplicate before accounting.
+
+**Example.** illustrative inputs, not a measurement: UID `g-7` is first classified stale and recorded; a second queued copy of `g-7` is classified duplicate, so it cannot be counted again.
+
+**Why here.** Makes terminal stale handling idempotent per epoch.
+
+**Tradeoffs.** The fence is epoch-local; checkpoint code persists the relevant UIDs.
+
+**Code and ownership.** [skyrl/train/staleness.py#L26](skyrl/train/staleness.py#L26) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [native strict fence](#subsystem-native-strict-fence). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
+<a id="technique-bounded-rollout-capacity"></a>
+
+<details>
+<summary>Condition-based capacity accounting</summary>
+
+**Mechanism.** Available submissions are the minimum of concurrency room and staleness budget after accepted and running work.
+
+**Example.** illustrative inputs, not a measurement: With batch size 2, current step 3, max age 1, limit 5 workers, 4 accepted groups, and 1 running group, the formula gives capacity `min(5-1, (1+3)*2-(4+1)) = 3`.
+
+**Why here.** Bounds outstanding generation while releasing slots on outcomes.
+
+**Tradeoffs.** Aggregate steady-state capacity does not guarantee each group age.
+
+**Code and ownership.** [skyrl/train/fully_async_trainer.py#L182](skyrl/train/fully_async_trainer.py#L182) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [native strict fence](#subsystem-native-strict-fence). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
+<a id="technique-finite-epoch-drain"></a>
+
+<details>
+<summary>Producer-completion queue drain</summary>
+
+**Mechanism.** Race queue retrieval against all-producers-done; exhaustion occurs only after the queue is empty.
+
+**Example.** illustrative queue state, not a measurement: If every producer has stopped but one completed group remains buffered, the drain returns that group first; only a later empty-queue check reports exhaustion.
+
+**Why here.** Allows exhaustion after filtering without indefinite blocking.
+
+**Tradeoffs.** Dropping the incomplete tail can reduce updates.
+
+**Code and ownership.** [skyrl/train/fully_async_trainer.py#L765](skyrl/train/fully_async_trainer.py#L765) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [native strict fence](#subsystem-native-strict-fence). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
+<a id="technique-background-failure-propagation"></a>
+
+<details>
+<summary>Background failure propagation</summary>
+
+**Mechanism.** Check recorded worker failures while waiting so consumer does not hang on a dead producer.
+
+**Example.** illustrative failure path: If a rollout worker records an exception while the consumer waits for a group, the wait raises that exception instead of treating producer completion as a normal empty epoch.
+
+**Why here.** Surfaces producer exceptions at the consumer boundary.
+
+**Tradeoffs.** Failure aborts this path; it does not retry generation.
+
+**Code and ownership.** [skyrl/train/fully_async_trainer.py#L765](skyrl/train/fully_async_trainer.py#L765) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [native strict fence](#subsystem-native-strict-fence). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
+<a id="technique-uid-checkpoint-resume"></a>
+
+<details>
+<summary>Consumed and filtered UID checkpoint resume</summary>
+
+**Mechanism.** Persist consumed and filtered UIDs with epoch and restore those ledgers on reload.
+
+**Example.** illustrative checkpoint state: A checkpoint records consumed UIDs `{u1, u2}` and filtered UID `{u2}`; on resume both are skipped from redraw, while the filtered set distinguishes `u2` from trained data.
+
+**Why here.** Async completion order makes step count insufficient to identify data progress.
+
+**Tradeoffs.** Adds checkpoint state and compatibility handling.
+
+**Code and ownership.** [skyrl/train/fully_async_trainer.py#L1210](skyrl/train/fully_async_trainer.py#L1210) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [native strict fence](#subsystem-native-strict-fence). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
+<a id="subsystem-local-async-reference"></a>
+
+### 2. local async reference
+
+[Back to the subsystem map](#architecture-and-execution-guide).
+
+**Code.** [`examples/local_async/train.py`](examples/local_async/train.py), [`skyrl/train/staleness.py`](skyrl/train/staleness.py).
+
+**Techniques.** [Cached frozen features with head-only updates](#technique-cached-frozen-feature-head-training), [Cooperative partial rollouts across policy updates](#technique-async-partial-rollouts), [Importance-corrected clipped policy gradient](#technique-clipped-importance-policy-gradient), [Terminal UID filtering on resume](#technique-terminal-uid-resume).
+
+**Related concepts.** [terminal UID](#terminal-uid).
+
+<a id="technique-cached-frozen-feature-head-training"></a>
+
+<details>
+<summary>Cached frozen features with head-only updates</summary>
+
+**Mechanism.** Freeze backbone, cache prompt hidden states, update a float32 subset of output rows.
+
+**Example.** illustrative prompt: For `Compute (6+7) modulo 10. Choose tool 0 for sum, 1 for difference. Tool:`, the frozen backbone’s final prompt state is cached and reused while the selected digit output rows are trained.
+
+**Why here.** The local reference isolates a small policy while reusing fixed-prompt backbone work.
+
+**Tradeoffs.** Cache validity depends on frozen backbone and prompt keys; not full-model training.
+
+**Code and ownership.** [examples/local_async/train.py#L1163](examples/local_async/train.py#L1163) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [local async reference](#subsystem-local-async-reference). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
+<a id="technique-async-partial-rollouts"></a>
+
+<details>
+<summary>Cooperative partial rollouts across policy updates</summary>
+
+**Mechanism.** A task samples tool action, pauses, then samples answer after policy updates and queues the group.
+
+**Example.** illustrative task timeline: UID `g-2` samples its two tool actions at policy version 0, waits at the gate while an update advances the policy, then samples its answer actions and enqueues the completed group.
+
+**Why here.** Makes policy lag and stragglers visible on one local event loop.
+
+**Tradeoffs.** Single-process cooperative tasks do not establish distributed throughput.
+
+**Code and ownership.** [examples/local_async/train.py#L1230](examples/local_async/train.py#L1230) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [local async reference](#subsystem-local-async-reference). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
+<a id="technique-clipped-importance-policy-gradient"></a>
+
+<details>
+<summary>Importance-corrected clipped policy gradient</summary>
+
+**Mechanism.** Compute current/stored probability ratio and optimize clipped reward-advantage surrogate.
+
+**Example.** illustrative action: For one sampled action, subtract its stored log probability from the current log probability, exponentiate to form the ratio, and use the reward advantage with the ratio clipped to `[0.8, 1.2]` in the surrogate.
+
+**Why here.** Stored log probabilities support correction for mixed-policy actions.
+
+**Tradeoffs.** Clipping can bias the surrogate and is not full native PPO parity.
+
+**Code and ownership.** [examples/local_async/train.py#L303](examples/local_async/train.py#L303) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [local async reference](#subsystem-local-async-reference). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
+<a id="technique-terminal-uid-resume"></a>
+
+<details>
+<summary>Terminal UID filtering on resume</summary>
+
+**Mechanism.** Reload terminal UIDs, skip them, and verify exact head weights from safetensors.
+
+**Example.** illustrative resume state: After loading terminal UID `g-2` and the saved head tensor, resume skips `g-2`; a new UID can generate a fresh group using the restored head.
+
+**Why here.** Demonstrates state continuity with stateless SGD.
+
+**Tradeoffs.** This compact demonstration is not a general crash-safe format.
+
+**Code and ownership.** [examples/local_async/train.py#L1329](examples/local_async/train.py#L1329) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [local async reference](#subsystem-local-async-reference). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
+<a id="subsystem-quality-study-selection"></a>
+
+### 3. quality study selection
+
+[Back to the subsystem map](#architecture-and-execution-guide).
+
+**Code.** [`examples/local_async/train.py`](examples/local_async/train.py).
+
+**Techniques.** [Frozen validation checkpoint selection](#technique-frozen-validation-checkpoint-selection), [Teacher-forced expected-reward evaluation](#technique-teacher-forced-expectation-evaluation), [Gradient-norm clipping](#technique-gradient-norm-clipping), [Cached-feature logit parity checks](#technique-cached-logit-parity-gate).
+
+<a id="technique-frozen-validation-checkpoint-selection"></a>
+
+<details>
+<summary>Frozen validation checkpoint selection</summary>
+
+**Mechanism.** Select the validation-best predeclared checkpoint, tie-breaking toward earlier step before test.
+
+**Example.** illustrative candidate values, not study results: If declared steps 32 and 128 tie on validation reward, the selection key prefers step 32; the held-out test is evaluated only after that choice.
+
+**Why here.** Separates model selection from held-out evaluation.
+
+**Tradeoffs.** A small validation set can be overfit.
+
+**Code and ownership.** [examples/local_async/train.py#L871](examples/local_async/train.py#L871) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [quality study selection](#subsystem-quality-study-selection). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
+<a id="technique-teacher-forced-expectation-evaluation"></a>
+
+<details>
+<summary>Teacher-forced expected-reward evaluation</summary>
+
+**Mechanism.** Sum reward over tool choices weighted by tool probability and conditional answer probabilities.
+
+**Example.** illustrative prompt: For operands 6 and 7, let `p0`/`p1` be the probabilities of sum/difference and `q0(3)`/`q1(3)` the conditional probabilities of answering 3; expected reward is `p0*(q0(3)+0.25) + p1*q1(3)`.
+
+**Why here.** The tiny discrete action space supports direct expectation calculation.
+
+**Tradeoffs.** Teacher-forced expectations are not sampled free-running generation.
+
+**Code and ownership.** [examples/local_async/train.py#L1266](examples/local_async/train.py#L1266) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [quality study selection](#subsystem-quality-study-selection). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
+<a id="technique-gradient-norm-clipping"></a>
+
+<details>
+<summary>Gradient-norm clipping</summary>
+
+**Mechanism.** Check finite gradients, clip their norm, step SGD, then verify finite head values.
+
+**Example.** illustrative gradient state: If the computed gradient is finite but its norm exceeds `max_grad_norm`, clip it before the SGD step, then reject the update if the resulting head contains a nonfinite value.
+
+**Why here.** Constrains oversized updates while rejecting nonfinite gradients.
+
+**Tradeoffs.** Clipping changes updates above threshold and does not ensure reward gains.
+
+**Code and ownership.** [examples/local_async/train.py#L326](examples/local_async/train.py#L326) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [quality study selection](#subsystem-quality-study-selection). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
+<a id="technique-cached-logit-parity-gate"></a>
+
+<details>
+<summary>Cached-feature logit parity checks</summary>
+
+**Mechanism.** Compare cached-feature and fresh-forward BF16 logits under the declared one-ULP gate.
+
+**Example.** illustrative consistency check: For a prompt, compare fresh-forward logits with logits projected from its cached feature for the selected digit rows; reject nonfinite values or a maximum discrepancy above the one-BF16-ULP gate.
+
+**Why here.** Checks cache equivalence for the training path.
+
+**Tradeoffs.** Parity does not establish quality or distributed behavior.
+
+**Code and ownership.** [examples/local_async/train.py#L263](examples/local_async/train.py#L263) (extension except inherited SkyRL capacity and drain/failure paths).
+
+
+
+**Used in.** [quality study selection](#subsystem-quality-study-selection). [Back to the subsystem map](#architecture-and-execution-guide).
+
+</details>
+
 ## Resource-light quality repair
 
 On a separate [fresh wider-operand holdout](docs/fresh-head-holdout-20261024.md), the five frozen, validation-selected clipped heads averaged **49.91% expected correct-answer probability versus 40.20%** for the initial head across 256 new arithmetic pairs. Every seed improved. The evaluation took 61.50 seconds and 1.42 GiB peak Torch CUDA allocation. This is a constrained tool-and-digit policy expectation, not general model accuracy or 1,280 independent questions.
@@ -183,249 +554,3 @@ The twenty dependency-free checks cover fence boundaries, duplicate delivery, fi
 Native validation remains unexecuted. This Windows machine's shared ML interpreter has no Ray or torchdata and uses Python 3.11 and Transformers 5.20.2, outside upstream's pins. An offline attempt to run the upstream CPU command failed before collection on uncached `polars-runtime-32`. Full training additionally needs the supported Linux FSDP/vLLM/NCCL setup. No distributed or production checkpoint execution is claimed.
 
 The isolated uv 0.13.4 tool came from official PyPI. Its retained wheel SHA256 is `b2ff80397273fff0e02c20eacae6882834c811827d6fc08f658db156fe754386`. Its Apache/MIT license metadata remains alongside the tool. No project dependency was added. The shared Torch environment has the documented unused `torch.jit.script` advisory `GHSA-rrmf-rvhw-rf47`; this path does not invoke TorchScript, and no zero-vulnerability claim is made.
-## Implementation techniques
-
-This covers active native strict fencing and the bounded local cached-feature reference. Tradeoff rationale is inferred from current code.
-
-| Subsystem | Techniques | Sources |
-|---|---|---|
-| Native strict fence | [Age fence](#technique-scheduling-step-age-fence), [UID suppression](#technique-uid-terminal-deduplication), [capacity](#technique-bounded-rollout-capacity), [drain](#technique-finite-epoch-drain), [failure propagation](#technique-background-failure-propagation), [checkpoint resume](#technique-uid-checkpoint-resume) | [staleness.py](skyrl/train/staleness.py), [fully_async_trainer.py](skyrl/train/fully_async_trainer.py) |
-| Local reference | [Cached head training](#technique-cached-frozen-feature-head-training), [partial rollouts](#technique-async-partial-rollouts), [clipped update](#technique-clipped-importance-policy-gradient), [UID resume](#technique-terminal-uid-resume), [validation selection](#technique-frozen-validation-checkpoint-selection), [expected reward](#technique-teacher-forced-expectation-evaluation), [gradient clipping](#technique-gradient-norm-clipping), [logit parity](#technique-cached-logit-parity-gate) | [train.py](examples/local_async/train.py) |
-
-<a id="technique-scheduling-step-age-fence"></a>
-
-<details>
-<summary>Scheduling-step policy-age fencing</summary>
-
-**Mechanism.** Stamp each group at scheduling; admit only when current minus stamp is within max age.
-
-**Example.** illustrative inputs, not a measurement: With max age 1, a group stamped at version 4 reaches the consumer at version 5 and is kept; if it arrives at version 6, it is stale.
-
-**Why here.** Adds an individual age bound to the aggregate producer capacity rule.
-
-**Tradeoffs.** Group-level stamps are conservative; strict behavior is opt-in.
-
-**Code and ownership.** [skyrl/train/staleness.py#L26](skyrl/train/staleness.py#L26) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
-
-<a id="technique-uid-terminal-deduplication"></a>
-
-<details>
-<summary>Terminal UID duplicate suppression</summary>
-
-**Mechanism.** A UID is recorded on first decision; later queue deliveries return duplicate before accounting.
-
-**Example.** illustrative inputs, not a measurement: UID `g-7` is first classified stale and recorded; a second queued copy of `g-7` is classified duplicate, so it cannot be counted again.
-
-**Why here.** Makes terminal stale handling idempotent per epoch.
-
-**Tradeoffs.** The fence is epoch-local; checkpoint code persists the relevant UIDs.
-
-**Code and ownership.** [skyrl/train/staleness.py#L26](skyrl/train/staleness.py#L26) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
-
-<a id="technique-bounded-rollout-capacity"></a>
-
-<details>
-<summary>Condition-based capacity accounting</summary>
-
-**Mechanism.** Available submissions are the minimum of concurrency room and staleness budget after accepted and running work.
-
-**Example.** illustrative inputs, not a measurement: With batch size 2, current step 3, max age 1, limit 5 workers, 4 accepted groups, and 1 running group, the formula gives capacity `min(5-1, (1+3)*2-(4+1)) = 3`.
-
-**Why here.** Bounds outstanding generation while releasing slots on outcomes.
-
-**Tradeoffs.** Aggregate steady-state capacity does not guarantee each group age.
-
-**Code and ownership.** [skyrl/train/fully_async_trainer.py#L182](skyrl/train/fully_async_trainer.py#L182) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
-
-<a id="technique-finite-epoch-drain"></a>
-
-<details>
-<summary>Producer-completion queue drain</summary>
-
-**Mechanism.** Race queue retrieval against all-producers-done; exhaustion occurs only after the queue is empty.
-
-**Example.** illustrative queue state, not a measurement: If every producer has stopped but one completed group remains buffered, the drain returns that group first; only a later empty-queue check reports exhaustion.
-
-**Why here.** Allows exhaustion after filtering without indefinite blocking.
-
-**Tradeoffs.** Dropping the incomplete tail can reduce updates.
-
-**Code and ownership.** [skyrl/train/fully_async_trainer.py#L765](skyrl/train/fully_async_trainer.py#L765) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
-
-<a id="technique-background-failure-propagation"></a>
-
-<details>
-<summary>Background failure propagation</summary>
-
-**Mechanism.** Check recorded worker failures while waiting so consumer does not hang on a dead producer.
-
-**Example.** illustrative failure path: If a rollout worker records an exception while the consumer waits for a group, the wait raises that exception instead of treating producer completion as a normal empty epoch.
-
-**Why here.** Surfaces producer exceptions at the consumer boundary.
-
-**Tradeoffs.** Failure aborts this path; it does not retry generation.
-
-**Code and ownership.** [skyrl/train/fully_async_trainer.py#L765](skyrl/train/fully_async_trainer.py#L765) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
-
-<a id="technique-uid-checkpoint-resume"></a>
-
-<details>
-<summary>Consumed and filtered UID checkpoint resume</summary>
-
-**Mechanism.** Persist consumed and filtered UIDs with epoch and restore those ledgers on reload.
-
-**Example.** illustrative checkpoint state: A checkpoint records consumed UIDs `{u1, u2}` and filtered UID `{u2}`; on resume both are skipped from redraw, while the filtered set distinguishes `u2` from trained data.
-
-**Why here.** Async completion order makes step count insufficient to identify data progress.
-
-**Tradeoffs.** Adds checkpoint state and compatibility handling.
-
-**Code and ownership.** [skyrl/train/fully_async_trainer.py#L1210](skyrl/train/fully_async_trainer.py#L1210) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
-
-<a id="technique-cached-frozen-feature-head-training"></a>
-
-<details>
-<summary>Cached frozen features with head-only updates</summary>
-
-**Mechanism.** Freeze backbone, cache prompt hidden states, update a float32 subset of output rows.
-
-**Example.** illustrative prompt: For `Compute (6+7) modulo 10. Choose tool 0 for sum, 1 for difference. Tool:`, the frozen backbone’s final prompt state is cached and reused while the selected digit output rows are trained.
-
-**Why here.** The local reference isolates a small policy while reusing fixed-prompt backbone work.
-
-**Tradeoffs.** Cache validity depends on frozen backbone and prompt keys; not full-model training.
-
-**Code and ownership.** [examples/local_async/train.py#L1163](examples/local_async/train.py#L1163) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
-
-<a id="technique-async-partial-rollouts"></a>
-
-<details>
-<summary>Cooperative partial rollouts across policy updates</summary>
-
-**Mechanism.** A task samples tool action, pauses, then samples answer after policy updates and queues the group.
-
-**Example.** illustrative task timeline: UID `g-2` samples its two tool actions at policy version 0, waits at the gate while an update advances the policy, then samples its answer actions and enqueues the completed group.
-
-**Why here.** Makes policy lag and stragglers visible on one local event loop.
-
-**Tradeoffs.** Single-process cooperative tasks do not establish distributed throughput.
-
-**Code and ownership.** [examples/local_async/train.py#L1230](examples/local_async/train.py#L1230) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
-
-<a id="technique-clipped-importance-policy-gradient"></a>
-
-<details>
-<summary>Importance-corrected clipped policy gradient</summary>
-
-**Mechanism.** Compute current/stored probability ratio and optimize clipped reward-advantage surrogate.
-
-**Example.** illustrative action: For one sampled action, subtract its stored log probability from the current log probability, exponentiate to form the ratio, and use the reward advantage with the ratio clipped to `[0.8, 1.2]` in the surrogate.
-
-**Why here.** Stored log probabilities support correction for mixed-policy actions.
-
-**Tradeoffs.** Clipping can bias the surrogate and is not full native PPO parity.
-
-**Code and ownership.** [examples/local_async/train.py#L303](examples/local_async/train.py#L303) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
-
-<a id="technique-terminal-uid-resume"></a>
-
-<details>
-<summary>Terminal UID filtering on resume</summary>
-
-**Mechanism.** Reload terminal UIDs, skip them, and verify exact head weights from safetensors.
-
-**Example.** illustrative resume state: After loading terminal UID `g-2` and the saved head tensor, resume skips `g-2`; a new UID can generate a fresh group using the restored head.
-
-**Why here.** Demonstrates state continuity with stateless SGD.
-
-**Tradeoffs.** This compact demonstration is not a general crash-safe format.
-
-**Code and ownership.** [examples/local_async/train.py#L1329](examples/local_async/train.py#L1329) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
-
-<a id="technique-frozen-validation-checkpoint-selection"></a>
-
-<details>
-<summary>Frozen validation checkpoint selection</summary>
-
-**Mechanism.** Select the validation-best predeclared checkpoint, tie-breaking toward earlier step before test.
-
-**Example.** illustrative candidate values, not study results: If declared steps 32 and 128 tie on validation reward, the selection key prefers step 32; the held-out test is evaluated only after that choice.
-
-**Why here.** Separates model selection from held-out evaluation.
-
-**Tradeoffs.** A small validation set can be overfit.
-
-**Code and ownership.** [examples/local_async/train.py#L871](examples/local_async/train.py#L871) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
-
-<a id="technique-teacher-forced-expectation-evaluation"></a>
-
-<details>
-<summary>Teacher-forced expected-reward evaluation</summary>
-
-**Mechanism.** Sum reward over tool choices weighted by tool probability and conditional answer probabilities.
-
-**Example.** illustrative prompt: For operands 6 and 7, let `p0`/`p1` be the probabilities of sum/difference and `q0(3)`/`q1(3)` the conditional probabilities of answering 3; expected reward is `p0*(q0(3)+0.25) + p1*q1(3)`.
-
-**Why here.** The tiny discrete action space supports direct expectation calculation.
-
-**Tradeoffs.** Teacher-forced expectations are not sampled free-running generation.
-
-**Code and ownership.** [examples/local_async/train.py#L1266](examples/local_async/train.py#L1266) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
-
-<a id="technique-gradient-norm-clipping"></a>
-
-<details>
-<summary>Gradient-norm clipping</summary>
-
-**Mechanism.** Check finite gradients, clip their norm, step SGD, then verify finite head values.
-
-**Example.** illustrative gradient state: If the computed gradient is finite but its norm exceeds `max_grad_norm`, clip it before the SGD step, then reject the update if the resulting head contains a nonfinite value.
-
-**Why here.** Constrains oversized updates while rejecting nonfinite gradients.
-
-**Tradeoffs.** Clipping changes updates above threshold and does not ensure reward gains.
-
-**Code and ownership.** [examples/local_async/train.py#L326](examples/local_async/train.py#L326) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
-
-<a id="technique-cached-logit-parity-gate"></a>
-
-<details>
-<summary>Cached-feature logit parity checks</summary>
-
-**Mechanism.** Compare cached-feature and fresh-forward BF16 logits under the declared one-ULP gate.
-
-**Example.** illustrative consistency check: For a prompt, compare fresh-forward logits with logits projected from its cached feature for the selected digit rows; reject nonfinite values or a maximum discrepancy above the one-BF16-ULP gate.
-
-**Why here.** Checks cache equivalence for the training path.
-
-**Tradeoffs.** Parity does not establish quality or distributed behavior.
-
-**Code and ownership.** [examples/local_async/train.py#L263](examples/local_async/train.py#L263) (extension except inherited SkyRL capacity and drain/failure paths).
-
-</details>
