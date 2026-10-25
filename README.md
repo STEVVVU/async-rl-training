@@ -16,6 +16,522 @@ The coursework source is [Asynchronous Agentic Reinforcement Learning](https://p
 
 ## Architecture and execution guide
 
+<!-- execution-flow:start -->
+### Execution flow
+
+Start with the primary path, then expand a detailed workflow. Select a numbered node to see its operation, implementation techniques, and source. Solid arrows show the named control, data, or lifecycle handoff; dotted arrows show error paths. Separate entry points are named in each workflow.
+
+<a id="review-walkthrough"></a>
+
+#### Walk through one concrete example
+
+Run one supported matched-study training configuration on the bounded local reference fixture, then evaluate its held-out checkpoint.
+
+**Trace.** [Prepare frozen train and validation feature cache](#flow-step-study-prepare) → [Run interleaved sync and async study arms](#flow-step-study-run) → [Apply clipped importance policy gradient](#flow-step-head-update) → [Validate and save candidate checkpoints](#flow-step-study-validation) → [Freeze validation-only checkpoint selection](#flow-step-study-select) → [Revalidate selection before separate final test](#flow-step-study-test).
+
+**Result and boundary.** The study updates the training head, selects using validation evidence, and evaluates the chosen result on the test split; the strict native policy-age fencing flow is a distinct execution path.
+
+<details>
+<summary>Implementation decisions to explain</summary>
+
+**Why use validation results for selection and reserve the test split for the selected run?** Selection on validation keeps the final test evidence separate from the choice; the tradeoff is that validation still guides the selected checkpoint.
+
+[Frozen validation checkpoint selection](#technique-frozen-validation-checkpoint-selection) · [Teacher-forced expected-reward evaluation](#technique-teacher-forced-expectation-evaluation).
+
+**Why evaluate cached logits for parity before running the study?** The parity gate checks that the cached frozen feature path agrees with its reference before training depends on it; this adds a prerequisite evaluation step.
+
+[Cached-feature logit parity checks](#technique-cached-logit-parity-gate).
+
+</details>
+
+#### Primary execution flow
+
+The native Ray entry drives bounded concurrent producers and one training consumer. Detailed workflows separate the local reference and study actions; neither is a native runtime continuation.
+
+```mermaid
+flowchart TD
+    n1["1. Start native fully async<br/>experiment"]
+    click n1 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-entry" "Open step, techniques, and source" _top
+    n2["2. Restore state and start epoch<br/>workers"]
+    click n2 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-epoch" "Open step, techniques, and source" _top
+    n5["5. Capture scheduling step and<br/>generate"]
+    click n5 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-generate" "Open step, techniques, and source" _top
+    n6["6. Enqueue before accepted<br/>accounting"]
+    click n6 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-enqueue" "Open step, techniques, and source" _top
+    n7["7. Drain completion queue with<br/>failure guard"]
+    click n7 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-drain" "Open step, techniques, and source" _top
+    n8["8. Decide duplicate, stale or<br/>eligible"]
+    click n8 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-fence" "Open step, techniques, and source" _top
+    n9["9. Filter stale or zero-variance<br/>groups"]
+    click n9 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-filter" "Open step, techniques, and source" _top
+    n10["10. Train full mini-batch and<br/>synchronize weights"]
+    click n10 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-update" "Open step, techniques, and source" _top
+    n11["11. Discard partial tail and end<br/>epoch"]
+    click n11 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-exhaust" "Open step, techniques, and source" _top
+    n12["12. Release held slot and<br/>propagate worker failure"]
+    click n12 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-failure" "Open step, techniques, and source" _top
+    n13["13. Save terminal ledgers with<br/>base checkpoint"]
+    click n13 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-checkpoint" "Open step, techniques, and source" _top
+    n1 -->|"Experiment subclass constructs native<br/>trainer"| n2
+    n2 -->|"Start concurrent generation workers"| n5
+    n5 -->|"Generation completes then publishes<br/>group"| n6
+    n6 -->|"Completed queue is consumed in<br/>finish-time order"| n7
+    n7 -->|"Strict mode decides each drained group"| n8
+    n8 -->|"Stale group returns accepted capacity<br/>and records terminal UID"| n9
+    n9 -->|"Continue collecting without retrying<br/>filtered UID"| n7
+    n8 -->|"Full kept mini-batch converts and<br/>trains"| n10
+    n10 -->|"Checkpoint interval or epoch-end<br/>branch after completed update"| n13
+    n10 -->|"Next step collects another batch"| n7
+    n7 -->|"Collection reports producers done and<br/>empty queue"| n11
+    n5 -.->|"Worker exception records failure or<br/>cancellation releases slot"| n12
+```
+
+**Detailed workflows.** [Reserve, generate, enqueue and account](#flow-workflow-native-production) · [Drain, fence, train and resume](#flow-workflow-native-consumption-resume) · [Independent bounded pretrained local reference](#flow-workflow-local-reference) · [Separate study commands and frozen selection](#flow-workflow-matched-study).
+
+<a id="flow-workflow-native-production"></a>
+
+<details>
+<summary>Reserve, generate, enqueue and account</summary>
+
+Producer publication precedes accepted accounting. Accepted is distinct from later optimizer eligibility.
+
+```mermaid
+flowchart TD
+    n2["2. Restore state and start epoch<br/>workers"]
+    click n2 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-epoch" "Open step, techniques, and source" _top
+    n3["3. Pull next unconsumed prompt"]
+    click n3 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-prompt" "Open step, techniques, and source" _top
+    n4["4. Reserve rollout capacity"]
+    click n4 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-capacity" "Open step, techniques, and source" _top
+    n5["5. Capture scheduling step and<br/>generate"]
+    click n5 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-generate" "Open step, techniques, and source" _top
+    n6["6. Enqueue before accepted<br/>accounting"]
+    click n6 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-enqueue" "Open step, techniques, and source" _top
+    n12["12. Release held slot and<br/>propagate worker failure"]
+    click n12 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-failure" "Open step, techniques, and source" _top
+    n2 -->|"Start worker loop"| n3
+    n3 -->|"Prepare input then await slot"| n4
+    n4 -->|"Capture global step after slot<br/>acquisition"| n5
+    n5 -->|"put_nowait precedes awaited accepted<br/>notification"| n6
+    n6 -->|"After accepted bookkeeping loop pulls<br/>next prompt"| n3
+    n5 -.->|"Exception or cancellation releases<br/>held submission"| n12
+    n6 -.->|"QueueFull is asserted and recorded by<br/>worker handler"| n12
+```
+
+</details>
+
+<a id="flow-workflow-native-consumption-resume"></a>
+
+<details>
+<summary>Drain, fence, train and resume</summary>
+
+Finite strict/sample-full draining includes the completion/get race, terminal stale accounting, partial-tail discard and checkpoint ledgers.
+
+```mermaid
+flowchart TD
+    n7["7. Drain completion queue with<br/>failure guard"]
+    click n7 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-drain" "Open step, techniques, and source" _top
+    n8["8. Decide duplicate, stale or<br/>eligible"]
+    click n8 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-fence" "Open step, techniques, and source" _top
+    n9["9. Filter stale or zero-variance<br/>groups"]
+    click n9 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-filter" "Open step, techniques, and source" _top
+    n10["10. Train full mini-batch and<br/>synchronize weights"]
+    click n10 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-update" "Open step, techniques, and source" _top
+    n11["11. Discard partial tail and end<br/>epoch"]
+    click n11 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-exhaust" "Open step, techniques, and source" _top
+    n12["12. Release held slot and<br/>propagate worker failure"]
+    click n12 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-failure" "Open step, techniques, and source" _top
+    n13["13. Save terminal ledgers with<br/>base checkpoint"]
+    click n13 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-checkpoint" "Open step, techniques, and source" _top
+    n14["14. Restore terminal UID sets<br/>and completed step"]
+    click n14 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-resume" "Open step, techniques, and source" _top
+    n2["2. Restore state and start epoch<br/>workers"]
+    click n2 href "https://github.com/STEVVVU/async-rl-training#flow-step-native-epoch" "Open step, techniques, and source" _top
+    n7 -->|"Dequeued group reaches strict decision"| n8
+    n8 -->|"Duplicate skips without<br/>reclassification"| n7
+    n8 -->|"Stale or later sample-full<br/>zero-variance branch filters group"| n9
+    n9 -->|"Filtered group does not retry"| n7
+    n8 -->|"Eligible complete mini-batch reaches<br/>training"| n10
+    n10 -->|"Increment global step, notify<br/>capacity, then next collection"| n7
+    n10 -->|"Configured periodic checkpoint after<br/>update"| n13
+    n7 -->|"None means epoch exhausted and partial<br/>kept batch is filtered"| n11
+    n11 -->|"Save last completed step if<br/>checkpointing enabled"| n13
+    n13 -->|"Later configured resume loads saved<br/>fully_async_state.pt"| n14
+    n14 -->|"Restore UID sets and capacity before<br/>spawning workers"| n2
+    n7 -.->|"BackgroundFailure guard raises instead<br/>of misreporting exhaustion"| n12
+```
+
+</details>
+
+<a id="flow-workflow-local-reference"></a>
+
+<details>
+<summary>Independent bounded pretrained local reference</summary>
+
+scripts/verify_async_rl.py drive calls run and asyncio.run(train). This is a separate CUDA head-only mechanism demonstration, with no native trainer handoff.
+
+```mermaid
+flowchart TD
+    n15["15. Load frozen backbone and<br/>cache features"]
+    click n15 href "https://github.com/STEVVVU/async-rl-training#flow-step-local-load" "Open step, techniques, and source" _top
+    n16["16. Pause tool trajectory then<br/>continue answer"]
+    click n16 href "https://github.com/STEVVVU/async-rl-training#flow-step-local-partial" "Open step, techniques, and source" _top
+    n17["17. Fence local completion queue"]
+    click n17 href "https://github.com/STEVVVU/async-rl-training#flow-step-local-admit" "Open step, techniques, and source" _top
+    n18["18. Apply clipped importance<br/>policy gradient"]
+    click n18 href "https://github.com/STEVVVU/async-rl-training#flow-step-head-update" "Open step, techniques, and source" _top
+    n19["19. Evaluate expected reward<br/>over tool and answer actions"]
+    click n19 href "https://github.com/STEVVVU/async-rl-training#flow-step-local-evaluate" "Open step, techniques, and source" _top
+    n20["20. Persist head and terminal<br/>UIDs; demonstrate fresh resume"]
+    click n20 href "https://github.com/STEVVVU/async-rl-training#flow-step-local-save-resume" "Open step, techniques, and source" _top
+    n21["21. Cancel owned local tasks and<br/>close event log"]
+    click n21 href "https://github.com/STEVVVU/async-rl-training#flow-step-local-cleanup" "Open step, techniques, and source" _top
+    n15 -->|"Evaluate initial policy before<br/>launching groups"| n19
+    n19 -->|"Initial launch or release carry gate<br/>after update evaluation"| n16
+    n16 -->|"Completed rollout enqueues stamped<br/>Group; consumer drains it"| n17
+    n17 -->|"Two kept groups form update batch"| n18
+    n18 -->|"Increment version then evaluate<br/>updated head"| n19
+    n17 -->|"Duplicate and stale groups continue<br/>draining"| n17
+    n19 -->|"After four updates, filter tail and<br/>persist state"| n20
+    n20 -->|"Success or exception executes task/log<br/>cleanup"| n21
+    n18 -.->|"Nonfinite state raises into finally<br/>cleanup"| n21
+```
+
+</details>
+
+<a id="flow-workflow-matched-study"></a>
+
+<details>
+<summary>Separate study commands and frozen selection</summary>
+
+Preparation, training, selection and final test are separate CLI actions joined by persisted artifacts, not automatic function calls. Only explicit study-test accesses held-out prompts.
+
+```mermaid
+flowchart TD
+    n22["22. Prepare frozen train and<br/>validation feature cache"]
+    click n22 href "https://github.com/STEVVVU/async-rl-training#flow-step-study-prepare" "Open step, techniques, and source" _top
+    n23["23. Run interleaved sync and<br/>async study arms"]
+    click n23 href "https://github.com/STEVVVU/async-rl-training#flow-step-study-run" "Open step, techniques, and source" _top
+    n18["18. Apply clipped importance<br/>policy gradient"]
+    click n18 href "https://github.com/STEVVVU/async-rl-training#flow-step-head-update" "Open step, techniques, and source" _top
+    n24["24. Validate and save candidate<br/>checkpoints"]
+    click n24 href "https://github.com/STEVVVU/async-rl-training#flow-step-study-validation" "Open step, techniques, and source" _top
+    n25["25. Freeze validation-only<br/>checkpoint selection"]
+    click n25 href "https://github.com/STEVVVU/async-rl-training#flow-step-study-select" "Open step, techniques, and source" _top
+    n26["26. Revalidate selection before<br/>separate final test"]
+    click n26 href "https://github.com/STEVVVU/async-rl-training#flow-step-study-test" "Open step, techniques, and source" _top
+    n27["27. Stop on provenance, parity<br/>or numeric failure"]
+    click n27 href "https://github.com/STEVVVU/async-rl-training#flow-step-study-invalid" "Open step, techniques, and source" _top
+    n22 -->|"Later study-run loads prepared<br/>manifest/features/hash receipts"| n23
+    n23 -->|"Study apply invokes BF16-forward head<br/>policy update"| n18
+    n18 -->|"Configured study checkpoints validate<br/>and save candidate rows"| n24
+    n24 -->|"Continue fixed update loop and<br/>remaining arm/seed runs"| n23
+    n24 -->|"Later selection reads full candidate<br/>and run receipt inventory"| n25
+    n25 -->|"Separate final-test action reads and<br/>recomputes selection receipt"| n26
+    n22 -.->|"Cached projection above one BF16 ULP<br/>raises"| n27
+    n25 -.->|"Input/checkpoint hash mismatch raises"| n27
+    n26 -.->|"Frozen selection mismatch raises<br/>before test feature preparation"| n27
+    n18 -.->|"Nonfinite loss or gradient raises"| n27
+```
+
+</details>
+
+#### Steps, techniques, and source
+
+These source traces cover the active scope below. They explain implementation behavior; benchmark results and their limits remain in the measurement sections.
+
+<a id="flow-step-native-entry"></a>
+
+##### 1. Start native fully async experiment
+
+**Component.** main. The fully async example parses and validates configuration, initializes Ray and awaits its remote experiment. Its trainer subclass constructs FullyAsyncRayPPOTrainer; this entry has no handoff into the local reference.
+
+This is an explicit entry, ordering boundary or terminal branch needed to explain the cited execution path.
+
+**Source.** [`examples/train/fully_async/main_fully_async.py:46`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/train/fully_async/main_fully_async.py#L46). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-epoch"></a>
+
+##### 2. Restore state and start epoch workers
+
+**Component.** train. train restores checkpoint ledgers and capacity when resuming, synchronizes inference weights, then starts generation tasks, a bounded completed-group queue and, for strict or sample-full mode, a completion watcher. A fresh fence is created for each epoch.
+
+**Techniques at this step.** [Consumed and filtered UID checkpoint ledgers](#technique-uid-checkpoint-resume) · [Condition-based rollout capacity accounting](#technique-bounded-rollout-capacity).
+
+**Source.** [`skyrl/train/fully_async_trainer.py:432`](https://github.com/STEVVVU/async-rl-training/blob/main/skyrl/train/fully_async_trainer.py#L432). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-prompt"></a>
+
+##### 3. Pull next unconsumed prompt
+
+**Component.** get_next_non_consumed_data. A locked dataloader skips terminal UIDs and stops at its effective mini-batch-divisible length. Each generator prepares input before acquiring a capacity slot.
+
+**Techniques at this step.** [Consumed and filtered UID checkpoint ledgers](#technique-uid-checkpoint-resume).
+
+**Source.** [`skyrl/train/fully_async_trainer.py:281`](https://github.com/STEVVVU/async-rl-training/blob/main/skyrl/train/fully_async_trainer.py#L281). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-capacity"></a>
+
+##### 4. Reserve rollout capacity
+
+**Component.** acquire_submission_slot. The condition waits until both running-worker and policy-step capacity permit submission. Reservation increments submitted and running; accepted means enqueued completion accounting, not optimizer admission.
+
+**Techniques at this step.** [Condition-based rollout capacity accounting](#technique-bounded-rollout-capacity).
+
+**Source.** [`skyrl/train/fully_async_trainer.py:190`](https://github.com/STEVVVU/async-rl-training/blob/main/skyrl/train/fully_async_trainer.py#L190). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-generate"></a>
+
+##### 5. Capture scheduling step and generate
+
+**Component.** _run_generate_for_a_group_loop. After acquiring a slot, the producer captures global_step and awaits generation. The captured step is a conservative oldest-policy bound for the whole group.
+
+**Techniques at this step.** [Scheduling-step policy-age fencing](#technique-scheduling-step-age-fence).
+
+**Source.** [`skyrl/train/fully_async_trainer.py:965`](https://github.com/STEVVVU/async-rl-training/blob/main/skyrl/train/fully_async_trainer.py#L965). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-enqueue"></a>
+
+##### 6. Enqueue before accepted accounting
+
+**Component.** _run_generate_for_a_group_loop. The producer put_nowait publishes a completed stamped group first. QueueFull raises an assertion; only after enqueue does it await on_rollout_accepted, which increments accepted, decrements running and notifies capacity waiters.
+
+**Techniques at this step.** [Condition-based rollout capacity accounting](#technique-bounded-rollout-capacity).
+
+**Source.** [`skyrl/train/fully_async_trainer.py:981`](https://github.com/STEVVVU/async-rl-training/blob/main/skyrl/train/fully_async_trainer.py#L981). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-drain"></a>
+
+##### 7. Drain completion queue with failure guard
+
+**Component.** _drain_next_group. Strict/sample-full mode checks background failure before queue state, returns buffered groups first, then detects all producers done. It races get against completion; if cancellation loses to a successful get it returns that popped item rather than discarding it. Non-strict non-sample-full mode uses guarded blocking get.
+
+**Techniques at this step.** [Producer-completion queue draining](#technique-finite-epoch-drain) · [Background worker failure propagation](#technique-background-failure-propagation).
+
+**Source.** [`skyrl/train/fully_async_trainer.py:766`](https://github.com/STEVVVU/async-rl-training/blob/main/skyrl/train/fully_async_trainer.py#L766). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-fence"></a>
+
+##### 8. Decide duplicate, stale or eligible
+
+**Component.** decide. The strict fence validates UID and versions, rejects duplicate UIDs without repeated accounting, and makes a first decision terminal for the epoch. Age is current scheduling step minus oldest captured step; values above max_age are stale.
+
+**Techniques at this step.** [Scheduling-step policy-age fencing](#technique-scheduling-step-age-fence) · [Terminal UID duplicate suppression](#technique-uid-terminal-deduplication).
+
+**Source.** [`skyrl/train/staleness.py:29`](https://github.com/STEVVVU/async-rl-training/blob/main/skyrl/train/staleness.py#L29). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-filter"></a>
+
+##### 9. Filter stale or zero-variance groups
+
+**Component.** _collect_generation_mini_batch. Stale groups, and zero-variance groups under sample_full_batch, reclassify already accepted accounting as filtered and add UID to consumed and filtered sets. They do not retry; duplicate groups skip this accounting.
+
+**Techniques at this step.** [Scheduling-step policy-age fencing](#technique-scheduling-step-age-fence) · [Terminal UID duplicate suppression](#technique-uid-terminal-deduplication) · [Condition-based rollout capacity accounting](#technique-bounded-rollout-capacity).
+
+**Source.** [`skyrl/train/fully_async_trainer.py:863`](https://github.com/STEVVVU/async-rl-training/blob/main/skyrl/train/fully_async_trainer.py#L863). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-update"></a>
+
+##### 10. Train full mini-batch and synchronize weights
+
+**Component.** _run_training. A full kept mini-batch converts to training input, computes values/log probabilities/reward and advantages, trains policy/critic, then marks trained UIDs consumed. Dispatch synchronizes sampler weights; the loop later increments global_step and notifies capacity.
+
+**Techniques at this step.** [Consumed and filtered UID checkpoint ledgers](#technique-uid-checkpoint-resume).
+
+**Source.** [`skyrl/train/fully_async_trainer.py:909`](https://github.com/STEVVVU/async-rl-training/blob/main/skyrl/train/fully_async_trainer.py#L909). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-exhaust"></a>
+
+##### 11. Discard partial tail and end epoch
+
+**Component.** train. When producers are done and the queue is empty, strict/sample-full collection reports exhaustion. The loop filters any partial kept mini-batch, optionally checkpoints the last completed step, then cancels/joins workers and validates empty queue and accounting before resetting epoch state.
+
+**Techniques at this step.** [Producer-completion queue draining](#technique-finite-epoch-drain).
+
+**Source.** [`skyrl/train/fully_async_trainer.py:550`](https://github.com/STEVVVU/async-rl-training/blob/main/skyrl/train/fully_async_trainer.py#L550). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-failure"></a>
+
+##### 12. Release held slot and propagate worker failure
+
+**Component.** _run_generate_for_a_group_loop. Cancellation releases a held slot with rejected accounting and exits. Other generation exceptions release the slot, record BackgroundFailure and re-raise; guarded consumers surface the failure, and train cancels and joins owned background tasks.
+
+**Techniques at this step.** [Background worker failure propagation](#technique-background-failure-propagation).
+
+**Source.** [`skyrl/train/fully_async_trainer.py:998`](https://github.com/STEVVVU/async-rl-training/blob/main/skyrl/train/fully_async_trainer.py#L998). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-checkpoint"></a>
+
+##### 13. Save terminal ledgers with base checkpoint
+
+**Component.** save_checkpoints. save_checkpoints snapshots consumed UIDs first, then filtered UIDs, calls base model/trainer checkpointing and writes fully_async_state.pt with epoch. This preserves filtered prompts as do-not-redraw without counting them as trained.
+
+**Techniques at this step.** [Consumed and filtered UID checkpoint ledgers](#technique-uid-checkpoint-resume).
+
+**Source.** [`skyrl/train/fully_async_trainer.py:1210`](https://github.com/STEVVVU/async-rl-training/blob/main/skyrl/train/fully_async_trainer.py#L1210). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-resume"></a>
+
+##### 14. Restore terminal UID sets and completed step
+
+**Component.** load_checkpoints. load_checkpoints requires fully_async_state.pt when a base checkpoint exists. Resume restores consumed/filtered sets even at step zero, verifies whole trained mini-batches, initializes capacity at completed step plus one, and uses saved epoch with older-checkpoint fallback.
+
+**Techniques at this step.** [Consumed and filtered UID checkpoint ledgers](#technique-uid-checkpoint-resume).
+
+**Source.** [`skyrl/train/fully_async_trainer.py:1237`](https://github.com/STEVVVU/async-rl-training/blob/main/skyrl/train/fully_async_trainer.py#L1237). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-local-load"></a>
+
+##### 15. Load frozen backbone and cache features
+
+**Component.** train. The independent local reference loads only cached trusted model assets on CUDA, freezes the backbone and unties the output head. It trains ten FP32 digit rows using SGD and caches the backbone final hidden vector for each prompt.
+
+**Techniques at this step.** [Cached frozen features with head-only updates](#technique-cached-frozen-feature-head-training).
+
+**Source.** [`examples/local_async/train.py:1163`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/local_async/train.py#L1163). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-local-partial"></a>
+
+##### 16. Pause tool trajectory then continue answer
+
+**Component.** rollout. Each local group samples two tool actions, announces ready and waits on its own gate. After release it samples answer digits with the current head, records rewards and versions, then enqueues a group carrying its oldest version.
+
+**Techniques at this step.** [Cooperative partial rollouts across policy updates](#technique-async-partial-rollouts).
+
+**Source.** [`examples/local_async/train.py:1229`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/local_async/train.py#L1229). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-local-admit"></a>
+
+##### 17. Fence local completion queue
+
+**Component.** train. The four-update reference drains two eligible groups per update through StalenessFence. Duplicate groups skip, stale groups become terminal and do not reach updates; carry gates deliberately span updates and a delayed straggler becomes stale.
+
+**Techniques at this step.** [Cooperative partial rollouts across policy updates](#technique-async-partial-rollouts) · [Terminal UID filtering on resume](#technique-terminal-uid-resume).
+
+**Source.** [`examples/local_async/train.py:1294`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/local_async/train.py#L1294). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-head-update"></a>
+
+##### 18. Apply clipped importance policy gradient
+
+**Component.** apply_policy_update. For each action, recompute log probability from the current head and cached hidden vector, form the old-to-current importance ratio and clipped surrogate with reward minus 0.5. Reject nonfinite loss/gradient, clip gradient norm when enabled, step SGD, validate the master head and install converted output rows.
+
+**Techniques at this step.** [Importance-corrected clipped policy gradient](#technique-clipped-importance-policy-gradient) · [Gradient-norm clipping](#technique-gradient-norm-clipping).
+
+**Source.** [`examples/local_async/train.py:303`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/local_async/train.py#L303). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-local-evaluate"></a>
+
+##### 19. Evaluate expected reward over tool and answer actions
+
+**Component.** evaluate. The local evaluate function sums answer probabilities weighted by tool probabilities over held-out arithmetic prompts. This teacher-forced expectation produces a curve without requiring sampled wording or a reward improvement.
+
+**Techniques at this step.** [Teacher-forced expected-reward evaluation](#technique-teacher-forced-expectation-evaluation).
+
+**Source.** [`examples/local_async/train.py:1265`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/local_async/train.py#L1265). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-local-save-resume"></a>
+
+##### 20. Persist head and terminal UIDs; demonstrate fresh resume
+
+**Component.** train. The reference marks remaining queued groups as epoch-tail filtered, saves JSON terminal/trained UID state and safetensors head weights, reloads them, and filters candidate UIDs against the terminal set. Only resumed-fresh is launched; assertions check restored head equality and eligibility.
+
+**Techniques at this step.** [Terminal UID filtering on resume](#technique-terminal-uid-resume).
+
+**Source.** [`examples/local_async/train.py:1320`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/local_async/train.py#L1320). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-local-cleanup"></a>
+
+##### 21. Cancel owned local tasks and close event log
+
+**Component.** train. The local reference finally cancels unfinished rollout tasks, gathers them and closes the events stream. Checkpoint/metrics assertions establish reference mechanics only; native distributed execution is explicitly recorded as not executed.
+
+This is an explicit entry, ordering boundary or terminal branch needed to explain the cited execution path.
+
+**Source.** [`examples/local_async/train.py:1385`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/local_async/train.py#L1385). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-study-prepare"></a>
+
+##### 22. Prepare frozen train and validation feature cache
+
+**Component.** prepare_study. prepare_study builds only train/validation prompts, checks single-token digit IDs and compares cached BF16 projections with full-model logits for both two and ten rows. More than one BF16 ULP fails preparation; features, manifest and source/model/input hashes are persisted.
+
+**Techniques at this step.** [Cached frozen features with head-only updates](#technique-cached-frozen-feature-head-training) · [Cached-feature logit parity checks](#technique-cached-logit-parity-gate).
+
+**Source.** [`examples/local_async/train.py:348`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/local_async/train.py#L348). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-study-run"></a>
+
+##### 23. Run interleaved sync and async study arms
+
+**Component.** run_study. run_study loads prepared inputs and executes the fixed arm/seed order. Sync groups finish before updates; async arms start the next partial groups before the current update and release their continuations afterward. Each admitted batch has two eligible groups; final carries become tail terminals.
+
+**Techniques at this step.** [Cooperative partial rollouts across policy updates](#technique-async-partial-rollouts) · [Importance-corrected clipped policy gradient](#technique-clipped-importance-policy-gradient) · [Gradient-norm clipping](#technique-gradient-norm-clipping).
+
+**Source.** [`examples/local_async/train.py:511`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/local_async/train.py#L511). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-study-validation"></a>
+
+##### 24. Validate and save candidate checkpoints
+
+**Component.** run_study. At configured checkpoints the study checks cached logit parity, evaluates expected validation reward, saves FP32 master and installed BF16 head rows, and reloads them exactly. Metrics and receipts bind candidate files, inputs, model, source, configuration and run order.
+
+**Techniques at this step.** [Cached-feature logit parity checks](#technique-cached-logit-parity-gate) · [Teacher-forced expected-reward evaluation](#technique-teacher-forced-expectation-evaluation).
+
+**Source.** [`examples/local_async/train.py:746`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/local_async/train.py#L746). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-study-select"></a>
+
+##### 25. Freeze validation-only checkpoint selection
+
+**Component.** _build_selection. _build_selection verifies prepared data, all run receipts and candidate tensors/hashes, then chooses maximum validation expected reward with earlier step as tie-break. select_study writes a new selection receipt and refuses to overwrite one; test prompts are not accessed.
+
+**Techniques at this step.** [Frozen validation checkpoint selection](#technique-frozen-validation-checkpoint-selection).
+
+**Source.** [`examples/local_async/train.py:871`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/local_async/train.py#L871). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-study-test"></a>
+
+##### 26. Revalidate selection before separate final test
+
+**Component.** test_study. A separate test_study action refuses overwrite, recomputes frozen selection and verifies it before constructing test features. It checks cached logits for initial and selected heads, evaluates expected reward and writes a final receipt; quality is reported rather than asserted.
+
+**Techniques at this step.** [Frozen validation checkpoint selection](#technique-frozen-validation-checkpoint-selection) · [Teacher-forced expected-reward evaluation](#technique-teacher-forced-expectation-evaluation) · [Cached-feature logit parity checks](#technique-cached-logit-parity-gate).
+
+**Source.** [`examples/local_async/train.py:1021`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/local_async/train.py#L1021). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-study-invalid"></a>
+
+##### 27. Stop on provenance, parity or numeric failure
+
+**Component.** _build_selection. Study input/receipt mismatch, invalid checkpoint tensors, BF16 parity violations and nonfinite policy state raise errors. Selection and final-test receipts are created exclusively; no fallback selects a different source or retries invalid data.
+
+**Techniques at this step.** [Frozen validation checkpoint selection](#technique-frozen-validation-checkpoint-selection).
+
+**Source.** [`examples/local_async/train.py:876`](https://github.com/STEVVVU/async-rl-training/blob/main/examples/local_async/train.py#L876). [Back to execution flow](#execution-flow).
+
+<details>
+<summary>Scope and subsystem coverage</summary>
+
+Active opt-in native SkyRL fully asynchronous PPO trainer and separate bounded examples/local_async cached-feature reference, including strict fencing and frozen-head quality-study drivers; excludes inactive upstream examples and unrelated preserved apps.
+
+- **native strict fence.** Native producer, consumer, failure, finite drain and persisted UID restoration paths. [Step 2](#flow-step-native-epoch), [Step 3](#flow-step-native-prompt), [Step 4](#flow-step-native-capacity), [Step 5](#flow-step-native-generate), [Step 6](#flow-step-native-enqueue), [Step 7](#flow-step-native-drain), [Step 8](#flow-step-native-fence), [Step 9](#flow-step-native-filter), [Step 10](#flow-step-native-update), [Step 11](#flow-step-native-exhaust), [Step 12](#flow-step-native-failure), [Step 13](#flow-step-native-checkpoint), [Step 14](#flow-step-native-resume).
+- **local async reference.** Separate frozen-backbone local action sampling, partial continuations, optimizer and terminal resume demonstration. [Step 15](#flow-step-local-load), [Step 16](#flow-step-local-partial), [Step 17](#flow-step-local-admit), [Step 18](#flow-step-head-update), [Step 20](#flow-step-local-save-resume), [Step 22](#flow-step-study-prepare), [Step 23](#flow-step-study-run).
+- **quality study selection.** Independent prepared-feature study with BF16 checks, validation-only selection and separate held-out expectation evaluation. [Step 18](#flow-step-head-update), [Step 19](#flow-step-local-evaluate), [Step 22](#flow-step-study-prepare), [Step 23](#flow-step-study-run), [Step 24](#flow-step-study-validation), [Step 25](#flow-step-study-select), [Step 26](#flow-step-study-test), [Step 27](#flow-step-study-invalid).
+
+Outside this flow audit:
+
+- `scripts/verify_async_rl.py`. Real-product verification driver; documents launch, evidence, and cleanup rather than training algorithm paths.
+- `tests/local_async/test_staleness.py`. Regression tests validate fence behavior but are not implementation paths.
+- `tests/local_async/test_checkpoint_boundary.py`. Regression tests validate checkpoint boundaries but are not implementation paths.
+
+</details>
+
+<!-- execution-flow:end -->
+
+<details>
+<summary>Subsystem technique index</summary>
+
 ### Subsystem map
 
 Select a subsystem in the diagram to open its techniques, tradeoffs, and code references. The numbered links provide the same navigation. This map groups components; the execution diagrams show their runtime flow.
@@ -38,6 +554,8 @@ flowchart LR
 This repository retains SkyRL and adds opt-in strict age checks to the fully asynchronous PPO trainer, plus a separate bounded local reference. The native trainer uses distributed rollout and training backends; the local reference reuses the fence with a small frozen Qwen model. It does not validate native distributed execution. A [rollout group](#rollout-group) carries a UID and scheduling stamp through the [policy age](#policy-age) check.
 
 The top-level flow separates producers from the training consumer. Eligible groups reach PPO; stale and duplicate groups do not.
+
+</details>
 
 <details>
 <summary>Expand flow diagram 1</summary>
