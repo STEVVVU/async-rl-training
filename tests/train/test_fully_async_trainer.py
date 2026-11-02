@@ -10,8 +10,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+import ray
 from torchdata.stateful_dataloader import StatefulDataLoader
 
+from skyrl.train.config.config import SkyRLTrainConfig
 from skyrl.train.fully_async_trainer import (
     FullyAsyncRayPPOTrainer,
     GeneratedOutputGroup,
@@ -20,6 +22,7 @@ from skyrl.train.fully_async_trainer import (
 )
 from skyrl.train.staleness import StalenessFence
 from skyrl.train.utils.async_utils import BackgroundFailure
+from skyrl.train.utils.trainer_utils import ResumeMode
 
 
 def _make_async_dataloader(num_prompts: int, mini_batch_size: int) -> _AsyncDataloader:
@@ -331,3 +334,86 @@ async def test_strict_stale_replay_has_one_terminal_accounting_effect():
     assert manager._stat.accepted == 0 and manager._stat.filtered == 1
     assert set(loader.get_filtered_uids_list()) == {"stale"}
     assert loader.num_trained() == 0
+
+
+@pytest.mark.asyncio
+async def test_strict_fence_checkpoint_resume_integration(tmp_path):
+    """Exercise the real queue, checkpoint files, and train resume prologue on CPU."""
+    cfg = SkyRLTrainConfig()
+    cfg.trainer.ckpt_path = str(tmp_path)
+    cfg.trainer.critic.model.path = None
+
+    def trainer():
+        instance = FullyAsyncRayPPOTrainer.__new__(FullyAsyncRayPPOTrainer)
+        instance.cfg = cfg
+        instance.mini_batch_size = 2
+        instance.sample_full_batch = False
+        instance.strict_staleness = True
+        instance.global_step = 2
+        instance.epoch = 0
+        instance.num_steps_per_epoch = 3
+        instance._staleness_fence = StalenessFence(1)
+        instance._staleness_manager = _AsyncStalenessManager(4, 2, 1)
+        instance.async_train_dataloader = _make_async_dataloader(6, 2)
+        instance.train_dataloader = instance.async_train_dataloader._train_dataloader
+        instance.all_metrics = {}
+        instance.all_timings = {}
+        instance._phase_gauge = SimpleNamespace(timed_phase=lambda *args: nullcontext())
+        instance.dispatch = Mock()
+        instance.dispatch.get_node_ids.return_value = []
+        instance.tokenizer = None
+        instance._node_ids = []
+        return instance
+
+    ray.init(address="local", num_cpus=2, include_dashboard=False)
+    try:
+        original = trainer()
+        await original._staleness_manager.notify_capacity_change(2)
+        for _ in range(3):
+            await original._staleness_manager.acquire_submission_slot()
+            await original._staleness_manager.on_rollout_accepted()
+        capacity_before = original._staleness_manager._compute_capacity_unlocked()
+        stale = GeneratedOutputGroup({}, "0", 0)
+        queue = asyncio.Queue()
+        for group in (stale, stale, GeneratedOutputGroup({}, "1", 1), GeneratedOutputGroup({}, "2", 2)):
+            queue.put_nowait(group)
+        kept, dropped, exhausted = await asyncio.wait_for(
+            original._collect_generation_mini_batch(queue, asyncio.Event(), BackgroundFailure()), timeout=5
+        )
+        assert [group.uid for group in kept] == ["1", "2"]
+        assert [group.uid for group in dropped] == ["0"] and not exhausted
+        assert original._staleness_manager._compute_capacity_unlocked() == capacity_before + 1
+        assert original._staleness_manager._stat.filtered == 1
+        assert original.all_metrics["async/num_groups_stale"] == 1
+        await original.async_train_dataloader.mark_consumed_uids(group.uid for group in kept)
+        checkpoint = original.save_checkpoints(global_step=1)
+        original.dispatch.save_checkpoint.assert_called_once()
+
+        resumed = trainer()
+        cfg.trainer.resume_path = checkpoint
+        resumed.resume_mode = ResumeMode.FROM_PATH
+
+        class StopBeforeWeightSync(Exception):
+            pass
+
+        resumed.init_weight_sync_state = Mock(side_effect=StopBeforeWeightSync)
+        with pytest.raises(StopBeforeWeightSync):
+            await asyncio.wait_for(resumed.train(), timeout=5)
+        resumed.dispatch.load_checkpoint.assert_called_once()
+        assert resumed.global_step == 1
+        assert resumed.async_train_dataloader.num_trained() == 2
+        assert set(resumed.async_train_dataloader.get_filtered_uids_list()) == {"0"}
+        assert resumed._staleness_manager._current_global_step == 2
+        assert resumed._staleness_manager._stat.accepted == 2
+        seen = []
+        while (prompts := await resumed.async_train_dataloader.get_next_non_consumed_data()) is not None:
+            seen.append(prompts[0]["uid"])
+        assert seen == ["3", "4", "5"]
+        print(
+            f"native fence evidence: kept={[group.uid for group in kept]}, "
+            f"dropped={[group.uid for group in dropped]}, stale_metric={original.all_metrics['async/num_groups_stale']}, "
+            f"capacity={capacity_before}->{original._staleness_manager._compute_capacity_unlocked()}, "
+            f"resumed_step={resumed.global_step}, resumed_next={seen}"
+        )
+    finally:
+        ray.shutdown()

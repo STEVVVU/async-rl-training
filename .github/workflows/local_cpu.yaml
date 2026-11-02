@@ -13,6 +13,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  native_fence_integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RAY_ADDRESS: local
+      PYTHONPATH: .:./skyrl-gym
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.13.4'
+      - name: Install locked CPU test environment and exercise native trainer
+        run: |
+          set -euo pipefail
+          {
+            uv run --isolated --no-project --python 3.12 -- uv export --frozen --extra skyrl-train --extra dev --no-emit-project \
+              | awk '/^[^[:space:]#]/{skip=($0 ~ /^(-e \.\/skyrl-gym|flash-attn|nixl|nvidia-|cuda-|triton==|quack-kernels|torch==|torch-c-dlpack-ext)/)} !skip' \
+              > native-cpu-requirements.txt
+            echo 'torch @ https://download-r2.pytorch.org/whl/cpu/torch-2.13.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl --hash=sha256:4ca4a9394b0c771238a4f73590fdbbc4debad85ed0fa63d026ae1b085da7d6e2' >> native-cpu-requirements.txt
+            uv run --isolated --no-project --python 3.12 -- uv venv "$RUNNER_TEMP/native-fence"
+            timeout 20m uv run --isolated --no-project --python 3.12 -- uv --no-config pip sync \
+              --python "$RUNNER_TEMP/native-fence/bin/python" --require-hashes \
+              native-cpu-requirements.txt
+            timeout 2m uv run --isolated --no-project --python 3.12 -- "$RUNNER_TEMP/native-fence/bin/python" -c \
+              'import ray, torch, torchdata; from skyrl.train.fully_async_trainer import FullyAsyncRayPPOTrainer; assert torch.version.cuda is None; print("actual trainer import:", FullyAsyncRayPPOTrainer, "torch:", torch.__version__, "ray:", ray.__version__, "torchdata:", torchdata.__version__)'
+            timeout 10m uv run --isolated --no-project --python 3.12 -- "$RUNNER_TEMP/native-fence/bin/python" -m pytest \
+              --basetemp "$RUNNER_TEMP/native-fence-tests" -v -s tests/train/test_fully_async_trainer.py
+          } 2>&1 | tee native-fence-integration.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-fence-integration-log
+          path: |
+            native-fence-integration.log
+            native-cpu-requirements.txt
+            ${{ runner.temp }}/native-fence-tests/
+          if-no-files-found: warn
+
   local_checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15
