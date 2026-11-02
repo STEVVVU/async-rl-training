@@ -11,7 +11,7 @@ SkyRL is a full-stack reinforcement learning library for training LLMs, designed
 
 ## Test Commands
 
-These mirror the preserved `.github/upstream-workflows/cpu_skyrl.yaml` and `cpu_jax.yaml`; keep them in sync. This checkout's `.github/workflows/local_cpu.yaml` runs the dependency-free local checks and static validation, not those native backend suites.
+These mirror the preserved `.github/upstream-workflows/cpu_skyrl.yaml` and `cpu_jax.yaml`; keep them in sync. This checkout's `.github/workflows/local_cpu.yaml` runs dependency-free local checks, static validation, and the focused native trainer test file in a CPU-only test environment. It does not run the full upstream backend suites.
 
 ```bash
 # CPU tests -- skyrl_train. Needs a backend extra for `ray`: without one, collection fails
